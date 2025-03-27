@@ -1,93 +1,251 @@
- @using (Html.BeginForm("UploadExcel", "UserRoleAccessMapping", FormMethod.Post, new { enctype = "multipart/form-data", @id = "uploadForm" }))
- {
-     @Html.AntiForgeryToken()
-     <div class="main-filter-tab" style="margin-top: 10px;">
-         <div>
-             <label for="fileUpload">Select an Excel file:</label>
-             <input type="file" id="fileUpload" name="file" class="form-control" accept=".xls,.xlsx" />
-         </div>
+@using (Html.BeginForm("UploadExcel", "UserRoleAccessMapping", FormMethod.Post, new { enctype = "multipart/form-data", @id = "uploadForm" }))
+{
+    @Html.AntiForgeryToken()
+    <div class="main-filter-tab" style="margin-top: 10px;">
+        <div>
+            <label for="fileUpload">Select an Excel file:</label>
+            <input type="file" id="fileUpload" name="file" class="form-control" accept=".xls,.xlsx" />
+        </div>
 
-         <br />
-         <!-- Change the button type to "button" to prevent form submission until validation is complete -->
-         <button type="button" id="uploadButton" onClick="validateEmails(event)" class="btn btn-primary">Upload</button>
+        <br />
+        <!-- Change the button type to "button" to prevent form submission until validation is complete -->
+        <button type="button" id="uploadButton" onClick="validateAndSubmit(event)" class="btn btn-primary">Upload</button>
 
-         <script type="text/javascript">
-         // Function to validate emails before form submission
-         function validateEmails(event) {
-             const fileInput = document.getElementById('fileUpload');
-             if (!fileInput.files.length) {
-                 alert("Please upload a file first.");
-                 return; // Prevent further execution
-             }
+        <script type="text/javascript">
+        // Function to validate the data in the uploaded Excel file
+        function validateAndSubmit(event) {
+            const fileInput = document.getElementById('fileUpload');
+            if (!fileInput.files.length) {
+                alert("Please upload a file first.");
+                return; // Prevent further execution
+            }
 
-             const file = fileInput.files[0];
+            const file = fileInput.files[0];
 
-             // Read the file using FileReader
-             const reader = new FileReader();
-             reader.onload = function (event) {
-                 const data = event.target.result;
-                 const workbook = XLSX.read(data, { type: 'binary' });
+            // Read the file using FileReader
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const data = event.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
 
-                 // Assuming the data is in the first sheet
-                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                 const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
+                // Assuming the data is in the first sheet
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
 
-                 // Find the index of the "UserEmail" column
-                 const emailColumnIndex = rows[0].indexOf('UserEmail');
-                 if (emailColumnIndex === -1) {
-                     alert("No 'UserEmail' column found in the file.");
-                     return; // Prevent further execution
-                 }
+                // Find the index of the columns
+                const emailColumnIndex = rows[0].indexOf('UserEmail');
+                const screenNameColumnIndex = rows[0].indexOf('ScreenName');
+                const accessNameColumnIndex = rows[0].indexOf('AccessName');
+                const roleNameColumnIndex = rows[0].indexOf('RoleName');
 
-                 // Validate email in each row
-                 let invalidRows = [];
-                 const emailRegex = /^[a-zA-Z0-9._-]+(@@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+                if (emailColumnIndex === -1 || screenNameColumnIndex === -1 || accessNameColumnIndex === -1 || roleNameColumnIndex === -1) {
+                    alert("Missing required columns in the file.");
+                    return; // Prevent further execution
+                }
 
-                 for (let i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
-                     const email = rows[i][emailColumnIndex];
-                     if (email && !emailRegex.test(email)) {
-                         invalidRows.push({
-                             row: i + 1,  // Row number starts from 1
-                             column: 'UserEmail',
-                             email: email
-                         });
-                     }
-                 }
+                // Validate emails and other values
+                let invalidRows = [];
+                const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
 
-                 // Show the result in a popup (alert)
-                 if (invalidRows.length > 0) {
-                     let resultMessage = 'Invalid Emails Found:\n\n';
-                     invalidRows.forEach(item => {
-                         resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}\n`;
-                     });
-                     alert(resultMessage);
-                 } else {
-                     // If all emails are valid, submit the form programmatically
-                     document.getElementById('uploadForm').submit();
-                 }
-             };
+                // Prepare the data to send to the server for validation
+                let screenNames = [];
+                let accessNames = [];
+                let roleNames = [];
+                let emails = [];
 
-             // Read the uploaded file as a binary string
-             reader.readAsBinaryString(file);
-         }
-         </script>
+                for (let i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
+                    const email = rows[i][emailColumnIndex];
+                    const screenName = rows[i][screenNameColumnIndex];
+                    const accessName = rows[i][accessNameColumnIndex];
+                    const roleName = rows[i][roleNameColumnIndex];
 
-         @if (ViewBag.ErrorMessage != null)
-         {
-             <p class="error-div">@ViewBag.ErrorMessage</p>
-         }
-         @if (ViewBag.SuccessMessage != null)
-         {
-             <p style="color: green;">@ViewBag.SuccessMessage</p>
-         }
-         @if (ViewBag.ErrorMessages != null && ViewBag.ErrorMessages.Count > 0)
-         {
-             <div class="error-div">
-                 @foreach (var error in ViewBag.ErrorMessages)
-                 {
-                     <p>@error</p>
-                 }
-             </div>
-         }
-     </div>
- }
+                    // Validate email
+                    if (email && !emailRegex.test(email)) {
+                        invalidRows.push({
+                            row: i + 1,  // Row number starts from 1
+                            column: 'UserEmail',
+                            value: email,
+                            error: 'Invalid email format'
+                        });
+                    }
+
+                    // Collect values for server-side validation
+                    screenNames.push(screenName);
+                    accessNames.push(accessName);
+                    roleNames.push(roleName);
+                    emails.push(email);
+                }
+
+                // Send the data to the server for validation
+                if (invalidRows.length === 0) {
+                    $.ajax({
+                        url: '/UserRoleAccessMapping/ValidateExcelData',  // Your controller action URL
+                        type: 'POST',
+                        data: {
+                            screenNames: screenNames,
+                            accessNames: accessNames,
+                            roleNames: roleNames,
+                            emails: emails
+                        },
+                        success: function (response) {
+                            if (response.isValid) {
+                                alert("All data is valid!");
+                                // If all data is valid, submit the form programmatically
+                                document.getElementById('uploadForm').submit();
+                            } else {
+                                let resultMessage = 'Validation Errors:\n\n';
+                                response.errors.forEach(function (error) {
+                                    resultMessage += `Row ${error.row}, Column ${error.column} - ${error.error}: ${error.value}\n`;
+                                });
+                                alert(resultMessage);  // Show validation errors in popup
+                            }
+                        },
+                        error: function () {
+                            alert("Error occurred during validation.");
+                        }
+                    });
+                } else {
+                    let resultMessage = 'Invalid Emails Found:\n\n';
+                    invalidRows.forEach(function (item) {
+                        resultMessage += `Row ${item.row}, Column ${item.column} - ${item.error}: ${item.value}\n`;
+                    });
+                    alert(resultMessage);  // Show email validation errors in popup
+                }
+            };
+
+            // Read the uploaded file as binary string
+            reader.readAsBinaryString(file);
+        }
+        </script>
+
+        @if (ViewBag.ErrorMessage != null)
+        {
+            <p class="error-div">@ViewBag.ErrorMessage</p>
+        }
+        @if (ViewBag.SuccessMessage != null)
+        {
+            <p style="color: green;">@ViewBag.SuccessMessage</p>
+        }
+        @if (ViewBag.ErrorMessages != null && ViewBag.ErrorMessages.Count > 0)
+        {
+            <div class="error-div">
+                @foreach (var error in ViewBag.ErrorMessages)
+                {
+                    <p>@error</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+-----------------
+public class UserRoleAccessMappingController : Controller
+{
+    private string connectionString = "YourConnectionStringHere";
+
+    [HttpPost]
+    public JsonResult ValidateExcelData(List<string> screenNames, List<string> accessNames, List<string> roleNames, List<string> emails)
+    {
+        List<ValidationError> errors = new List<ValidationError>();
+
+        // Validate ScreenNames
+        for (int i = 0; i < screenNames.Count; i++)
+        {
+            if (!IsValidScreenName(screenNames[i]))
+            {
+                errors.Add(new ValidationError
+                {
+                    Row = i + 1, // Row number starts from 1
+                    Column = "ScreenName",
+                    Value = screenNames[i],
+                    Error = "Invalid ScreenName"
+                });
+            }
+        }
+
+        // Validate AccessNames
+        for (int i = 0; i < accessNames.Count; i++)
+        {
+            if (!IsValidAccessName(accessNames[i]))
+            {
+                errors.Add(new ValidationError
+                {
+                    Row = i + 1,
+                    Column = "AccessName",
+                    Value = accessNames[i],
+                    Error = "Invalid AccessName"
+                });
+            }
+        }
+
+        // Validate RoleNames
+        for (int i = 0; i < roleNames.Count; i++)
+        {
+            if (!IsValidRoleName(roleNames[i]))
+            {
+                errors.Add(new ValidationError
+                {
+                    Row = i + 1,
+                    Column = "RoleName",
+                    Value = roleNames[i],
+                    Error = "Invalid RoleName"
+                });
+            }
+        }
+
+        // Validate Emails
+        for (int i = 0; i < emails.Count; i++)
+        {
+            if (!IsValidEmail(emails[i]))
+            {
+                errors.Add(new ValidationError
+                {
+                    Row = i + 1,
+                    Column = "UserEmail",
+                    Value = emails[i],
+                    Error = "Invalid email format"
+                });
+            }
+        }
+
+        // Return the result (valid or invalid)
+        if (errors.Any())
+        {
+            return Json(new { isValid = false, errors = errors });
+        }
+
+        return Json(new { isValid = true });
+    }
+
+    private bool IsValidScreenName(string screenName)
+    {
+        // Implement your ADO.NET validation logic here
+        return true;
+    }
+
+    private bool IsValidAccessName(string accessName)
+    {
+        // Implement your ADO.NET validation logic here
+        return true;
+    }
+
+    private bool IsValidRoleName(string roleName)
+    {
+        // Implement your ADO.NET validation logic here
+        return true;
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        var emailRegex = new Regex(@"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$");
+        return emailRegex.IsMatch(email);
+    }
+}
+
+public class ValidationError
+{
+    public int Row { get; set; }
+    public string Column { get; set; }
+    public string Value { get; set; }
+    public string Error { get; set; }
+}
