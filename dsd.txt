@@ -1,89 +1,185 @@
-public List<string> ProcessExcelFile(IRBADatabaseEntities dbDatabase, Stream fileStream)
-{
-    var errorMessages = new List<string>();
+ public List<string> ProcessExcelFile(IRBADatabaseEntities dbDatabase, Stream fileStream)
+ {
+     var errorMessages = new List<string>();
 
-    try
-    {
-        using (var package = new ExcelPackage(fileStream))
-        {
-            // Check if there are any worksheets
-            if (package.Workbook.Worksheets.Count == 0)
-            {
-                errorMessages.Add("The uploaded Excel file contains no worksheets.");
-                return errorMessages;
-            }
+     try
+     {
+         using (var package = new ExcelPackage(fileStream))
+         {
+             // Check if there are any worksheets
+             if (package.Workbook.Worksheets.Count == 0)
+             {
+                 errorMessages.Add("The uploaded Excel file contains no worksheets.");
+                 return errorMessages;
+             }
 
-            // Access the first worksheet safely
-            var worksheet = package.Workbook.Worksheets[1];
+             // Access the first worksheet safely
+             var worksheet = package.Workbook.Worksheets[1];
 
-            // Check if the worksheet has any data
-            if (worksheet.Dimension == null)
-            {
-                errorMessages.Add("The first worksheet is empty.");
-                return errorMessages;
-            }
+             // Check if the worksheet has any data
+             if (worksheet.Dimension == null)
+             {
+                 errorMessages.Add("The first worksheet is empty.");
+                 return errorMessages;
+             }
 
-            var rowCount = worksheet.Dimension.Rows;
+             var rowCount = worksheet.Dimension.Rows;
 
-            for (int row = 2; row <= rowCount; row++)
-            {
-                var userEmail = worksheet.Cells[row, 1].Text?.Trim();
-                var countryId = worksheet.Cells[row, 2].Text?.Trim();
-                var roleName = worksheet.Cells[row, 3].Text?.Trim();
-                var screenName = worksheet.Cells[row, 4].Text?.Trim();
-                var userType = worksheet.Cells[row, 5].Text?.Trim();
-                var accessLevel = worksheet.Cells[row, 6].Text?.Trim();
-                var assignCountry = worksheet.Cells[row, 7].Text?.Trim();
+             for (int row = 2; row <= rowCount; row++)
+             {
+                 var userEmail = worksheet.Cells[row, 1].Text?.Trim();
+                 var countryId = worksheet.Cells[row, 2].Text?.Trim();
+                 var roleName = worksheet.Cells[row, 3].Text?.Trim();
+                 var screenName = worksheet.Cells[row, 4].Text?.Trim();
+                 var userType = worksheet.Cells[row, 5].Text?.Trim();
+                 var accessLevel = worksheet.Cells[row, 6].Text?.Trim();
+                 var assignCountry = worksheet.Cells[row, 7].Text?.Trim();
 
-                // Collect missing required fields
-                if (string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(screenName) || string.IsNullOrEmpty(userType))
-                {
-                    errorMessages.Add($"Row {row}: Required fields (Email, Role, Screen, User Type) are missing.");
-                    continue;
-                }
+                 // Collect missing required fields
+                 if (string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(screenName) || string.IsNullOrEmpty(userType))
+                 {
+                     errorMessages.Add($"Row {row}: Required fields (Email, Role, Screen, User Type) are missing.");
+                     continue;
+                 }
 
-                // Validate RoleAccessMapping table
-                var roleAccessId = GetRoleAccessMapping(dbDatabase, roleName, screenName, userType);
-                if (roleAccessId == null)
-                {
-                    errorMessages.Add($"Row {row}: Role '{roleName}', Screen '{screenName}', or Access '{userType}' combination not found in RoleAccessTable.");
-                    continue;
-                }
+                 // Validate RoleAccessMapping table
+                 var roleAccessId = GetRoleAccessMapping(dbDatabase, roleName, screenName, userType);
+                 if (roleAccessId == null)
+                 {
+                     errorMessages.Add($"Row {row}: Role '{roleName}', Screen '{screenName}', or Access '{userType}' combination not found in RoleAccessTable.");
+                     continue;
+                 }
 
-                // Step 1: Handle User Details
-                var userId = GetOrCreateUser(dbDatabase, userEmail, out string userName, out string opcoName);
+                 // Step 1: Handle User Details
+                 var userId = GetOrCreateUser(dbDatabase, userEmail, out string userName, out string opcoName);
 
-                // Step 2: Handle User Role Access Mapping
-                var userRoleAccessMapping = dbDatabase.User_Role_Access_Mapping
-                    .FirstOrDefault(ura => ura.UserId == userId && ura.RoleAccessId == roleAccessId);
+                 // Step 2: Handle User Role Access Mapping
+                 var userRoleAccessMapping = dbDatabase.User_Role_Access_Mapping
+                     .FirstOrDefault(ura => ura.UserId == userId && ura.RoleAccessId == roleAccessId);
 
-                if (userRoleAccessMapping != null)
-                {
-                    userRoleAccessMapping.Country = assignCountry;
-                    dbDatabase.SaveChanges();
-                }
-                else
-                {
-                    var newUserRoleAccessMapping = new User_Role_Access_Mapping
-                    {
-                        UserId = userId,
-                        RoleAccessId = (long)roleAccessId,
-                        Country = assignCountry,
-                        CreatedBy = "System", // Replace with actual logged-in user
-                        CreatedDate = DateTime.Now,
-                        UpdatedBy = "System",
-                        UpdatedDate = DateTime.Now
-                    };
-                    dbDatabase.User_Role_Access_Mapping.Add(newUserRoleAccessMapping);
-                    dbDatabase.SaveChanges();
-                }
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        errorMessages.Add($"Error processing the file: {ex.Message}");
-    }
+                 if (userRoleAccessMapping != null)
+                 {
+                     userRoleAccessMapping.Country = assignCountry;
+                     dbDatabase.SaveChanges();
+                 }
+                 else
+                 {
+                     var newUserRoleAccessMapping = new User_Role_Access_Mapping
+                     {
+                         UserId = userId,
+                         RoleAccessId = (long)roleAccessId,
+                         Country = assignCountry,
+                         CreatedBy = "System", // Replace with actual logged-in user
+                         CreatedDate = DateTime.Now,
+                         UpdatedBy = "System",
+                         UpdatedDate = DateTime.Now
+                     };
+                     dbDatabase.User_Role_Access_Mapping.Add(newUserRoleAccessMapping);
+                     dbDatabase.SaveChanges();
+                 }
+             }
+         }
+     }
+     catch (Exception ex)
+     {
+         errorMessages.Add($"Error processing the file: {ex.Message}");
+     }
 
-    return errorMessages;
-}
+     return errorMessages;
+ }
+
+--------------------------
+
+  @using (Html.BeginForm("UploadExcel", "UserRoleAccessMapping", FormMethod.Post, new { enctype = "multipart/form-data", @id = "uploadForm" }))
+  {
+      @Html.AntiForgeryToken()
+      <div class="main-filter-tab" style="margin-top: 10px;">
+          <div>
+              <label for="fileUpload">Select an Excel file:</label>
+              <input type="file" id="fileUpload" name="file" class="form-control" accept=".xls,.xlsx" />
+          </div>
+
+          <br />
+          <!-- Change the button type to "button" to prevent form submission until validation is complete -->
+          <button type="button" id="uploadButton" onClick="validateEmails(event)" class="btn btn-primary">Upload</button>
+
+          <script type="text/javascript">
+          // Function to validate emails before form submission
+          function validateEmails(event) {
+              const fileInput = document.getElementById('fileUpload');
+              if (!fileInput.files.length) {
+                  alert("Please upload a file first.");
+                  return; // Prevent further execution
+              }
+
+              const file = fileInput.files[0];
+
+              // Read the file using FileReader
+              const reader = new FileReader();
+              reader.onload = function (event) {
+                  const data = event.target.result;
+                  const workbook = XLSX.read(data, { type: 'binary' });
+
+                  // Assuming the data is in the first sheet
+                  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
+
+                  // Find the index of the "UserEmail" column
+                  const emailColumnIndex = rows[0].indexOf('UserEmail');
+                  if (emailColumnIndex === -1) {
+                      alert("No 'UserEmail' column found in the file.");
+                      return; // Prevent further execution
+                  }
+
+                  // Validate email in each row
+                  let invalidRows = [];
+                  const emailRegex = /^[a-zA-Z0-9._-]+(@@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+
+                  for (let i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
+                      const email = rows[i][emailColumnIndex];
+                      if (email && !emailRegex.test(email)) {
+                          invalidRows.push({
+                              row: i + 1,  // Row number starts from 1
+                              column: 'UserEmail',
+                              email: email
+                          });
+                      }
+                  }
+
+                  // Show the result in a popup (alert)
+                  if (invalidRows.length > 0) {
+                      let resultMessage = 'Invalid Emails Found:\n\n';
+                      invalidRows.forEach(item => {
+                          resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}\n`;
+                      });
+                      alert(resultMessage);
+                  } else {
+                      // If all emails are valid, submit the form programmatically
+                      document.getElementById('uploadForm').submit();
+                  }
+              };
+
+              // Read the uploaded file as a binary string
+              reader.readAsBinaryString(file);
+          }
+          </script>
+
+          @if (ViewBag.ErrorMessage != null)
+          {
+              <p class="error-div">@ViewBag.ErrorMessage</p>
+          }
+          @if (ViewBag.SuccessMessage != null)
+          {
+              <p style="color: green;">@ViewBag.SuccessMessage</p>
+          }
+          @if (ViewBag.ErrorMessages != null && ViewBag.ErrorMessages.Count > 0)
+          {
+              <div class="error-div">
+                  @foreach (var error in ViewBag.ErrorMessages)
+                  {
+                      <p>@error</p>
+                  }
+              </div>
+          }
+      </div>
+  }
