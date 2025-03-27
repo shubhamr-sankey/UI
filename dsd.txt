@@ -1,7 +1,106 @@
- private long? GetRoleAccessMapping(IRBADatabaseEntities dbDatabase, string roleName, string screenName, string accessName)
- {
-     var roleAccess = dbDatabase.Role_Access_Mapping
-         .FirstOrDefault(r => r.RoleName == roleName && r.ScreenName == screenName && r.AccessName == accessName);
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel Validation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.4/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>Excel Data Validation</h1>
 
-     return roleAccess?.Id;
- }
+    <!-- File upload input -->
+    <input type="file" id="fileUpload" accept=".xlsx, .xls" />
+    <br><br>
+    <button onclick="validateData()">Validate Data</button>
+
+    <script type="text/javascript">
+        // Function to call the backend API for validation
+        async function validateRow(roleName, screenName, accessName) {
+            try {
+                const response = await fetch('http://localhost:5000/api/validation/validate-row', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        roleName: roleName,
+                        screenName: screenName,
+                        accessName: accessName
+                    })
+                });
+
+                const data = await response.json();
+                return data.valid;  // true or false based on validation result
+            } catch (error) {
+                console.error("Error validating row:", error);
+                return false;
+            }
+        }
+
+        // Main function to validate all rows in the Excel file
+        async function validateData() {
+            const fileInput = document.getElementById('fileUpload');
+            if (!fileInput.files.length) {
+                alert("Please upload a file first.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+
+            // Read the file using FileReader
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const data = event.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+
+                // Assuming the data is in the first sheet
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
+
+                // Find the indexes of the columns
+                const screenNameIndex = rows[0].indexOf('ScreenName');
+                const accessNameIndex = rows[0].indexOf('AccessName');
+                const roleNameIndex = rows[0].indexOf('RoleName');
+                const emailColumnIndex = rows[0].indexOf('UserEmail');
+
+                if (screenNameIndex === -1 || accessNameIndex === -1 || roleNameIndex === -1 || emailColumnIndex === -1) {
+                    alert("One or more required columns not found.");
+                    return;
+                }
+
+                // Validate each row and check with the backend API
+                let invalidRows = [];
+                for (let i = 1; i < rows.length; i++) { // Start from 1 to skip header row
+                    const screenName = rows[i][screenNameIndex];
+                    const accessName = rows[i][accessNameIndex];
+                    const roleName = rows[i][roleNameIndex];
+
+                    // Check the validity of ScreenName, AccessName, and RoleName
+                    const isValid = await validateRow(roleName, screenName, accessName);
+                    if (!isValid) {
+                        invalidRows.push({
+                            row: i + 1,  // Row number starts from 1
+                            column: 'ScreenName / AccessName / RoleName',
+                            value: `${screenName} / ${accessName} / ${roleName}`,
+                            valid: false
+                        });
+                    }
+                }
+
+                // Show the result in a popup (alert)
+                if (invalidRows.length > 0) {
+                    let resultMessage = 'Invalid Entries Found:\n\n';
+                    invalidRows.forEach(item => {
+                        resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Value: ${item.value}\n`;
+                    });
+                    alert(resultMessage);
+                } else {
+                    alert('All entries are valid!');
+                }
+            };
+
+            // Read the uploaded file as binary string
+            reader.readAsBinaryString(file);
+        }
+    </script>
+</body>
+</html>
