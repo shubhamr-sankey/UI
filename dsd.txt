@@ -1,3 +1,48 @@
-var errorMessages = new List<string>();
+ [HttpPost]
+ [ValidateAntiForgeryToken]
+ public ActionResult UploadExcel(HttpPostedFileBase file)
+     {
 
-ViewBag.ErrorMessages = errorMessages;
+     if (file != null && file.ContentLength > 0)
+     {
+         // Validate the file extension (Excel files only)
+         var validExtensions = new[] { ".xls", ".xlsx" };
+         var fileExtension = Path.GetExtension(file.FileName).ToLower();
+
+         if (!validExtensions.Contains(fileExtension))
+         {
+             ViewBag.ErrorMessage = "Please upload a valid Excel file (xls, xlsx).";
+             return View("UserRoleAccessMappingView");
+         }
+
+
+
+         // Process the uploaded Excel file using the service
+         List<string> errorMessages = _userRoleAccessMappingService.ProcessExcelFile(dbDatabase, file.InputStream);
+
+         if (errorMessages.Count > 0)
+         {
+             // Add validation for missing RoleName, ScreenName, or AccessName
+             var missingDetails = errorMessages.Where(msg => msg.Contains("Role") || msg.Contains("Screen") || msg.Contains("Access")).ToList();
+
+             if (missingDetails.Any())
+             {
+                 // If specific validation errors are found, show them in a popup
+                 ViewBag.ErrorMessages = missingDetails;
+                 return View("UserRoleAccessMappingView");  // Or your specific view
+             }
+
+             // Show general error messages if present
+             ViewBag.ErrorMessages = errorMessages;
+             return View("UserRoleAccessMappingView");
+         }
+
+         // If no errors, display a success message
+         ViewBag.SuccessMessage = "Excel file processed successfully!";
+         return RedirectToAction("UserRoleAccessMappingView");
+     }
+
+     // If no file was uploaded, show an error
+     ViewBag.ErrorMessage = "Please upload a valid Excel file.";
+     return View("UserRoleAccessMappingView");
+ }
