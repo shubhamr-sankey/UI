@@ -1,28 +1,4 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>File Upload and Email Validation</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.4/xlsx.full.min.js"></script> <!-- Include SheetJS library -->
-</head>
-<body>
-    <h1>Welcome to My Page</h1>
-    <button onclick="showAlert()">Click Me</button>
-    <br><br>
-    
-    <!-- File upload input -->
-    <input type="file" id="fileUpload" accept=".xlsx, .xls" />
-    <br><br>
-    <button onclick="validateEmails()">Validate Emails</button>
-    
-    <div id="validationResult"></div>
-
-    <script type="text/javascript">
-        function showAlert() {
-            alert("This is an alert message!");
-        }
-
-        // Function to validate emails
-        function validateEmails() {
+function validateEmails() {
             const fileInput = document.getElementById('fileUpload');
             if (!fileInput.files.length) {
                 alert("Please upload a file first.");
@@ -63,15 +39,15 @@
                     }
                 }
 
-                // Show the result
-                const resultDiv = document.getElementById('validationResult');
+                // Show the result in a popup (alert)
                 if (invalidRows.length > 0) {
-                    resultDiv.innerHTML = '<h3>Invalid Emails Found:</h3>';
+                    let resultMessage = 'Invalid Emails Found:\n\n';
                     invalidRows.forEach(item => {
-                        resultDiv.innerHTML += `<p>Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}</p>`;
+                        resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}\n`;
                     });
+                    alert(resultMessage);
                 } else {
-                    resultDiv.innerHTML = '<p>All emails are valid!</p>';
+                    alert('All emails are valid!');
                 }
             };
 
@@ -79,5 +55,3 @@
             reader.readAsBinaryString(file);
         }
     </script>
-</body>
-</html>
