@@ -1,4 +1,1 @@
-@{
-    var errorMessages = ViewBag.ErrorMessages as List<string>;
-    var successMessage = ViewBag.SuccessMessage as string;
-}
+ return Json(new { success = false, errorMessages }, JsonRequestBehavior.AllowGet);
