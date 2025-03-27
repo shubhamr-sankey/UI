@@ -1,115 +1,89 @@
-<!-- File upload form -->
-<input type="file" id="excelFile" accept=".xlsx, .xls" />
-<button type="button" onclick="uploadExcel()">Upload Excel</button>
+public List<string> ProcessExcelFile(IRBADatabaseEntities dbDatabase, Stream fileStream)
+{
+    var errorMessages = new List<string>();
 
-<!-- Validation result display (optional) -->
-<div id="validationResult"></div>
-
-
-[HttpPost]
-    public JsonResult ValidateExcel(string column1, string column2, string column3)
+    try
     {
-        List<string> invalidColumns = new List<string>();
-
-        // Validate the first column
-        var dbRecord1 = db.YourTable.FirstOrDefault(x => x.Column1 == column1);
-        if (dbRecord1 == null)
+        using (var package = new ExcelPackage(fileStream))
         {
-            invalidColumns.Add("Column1");
-        }
+            // Check if there are any worksheets
+            if (package.Workbook.Worksheets.Count == 0)
+            {
+                errorMessages.Add("The uploaded Excel file contains no worksheets.");
+                return errorMessages;
+            }
 
-        // Validate the second column
-        var dbRecord2 = db.YourTable.FirstOrDefault(x => x.Column2 == column2);
-        if (dbRecord2 == null)
-        {
-            invalidColumns.Add("Column2");
-        }
+            // Access the first worksheet safely
+            var worksheet = package.Workbook.Worksheets[1];
 
-        // Validate the third column
-        var dbRecord3 = db.YourTable.FirstOrDefault(x => x.Column3 == column3);
-        if (dbRecord3 == null)
-        {
-            invalidColumns.Add("Column3");
-        }
+            // Check if the worksheet has any data
+            if (worksheet.Dimension == null)
+            {
+                errorMessages.Add("The first worksheet is empty.");
+                return errorMessages;
+            }
 
-        // If there are invalid columns, return the list, otherwise return true
-        bool isValid = !invalidColumns.Any();
-        
-        return Json(new { isValid = isValid, invalidColumns = invalidColumns });
-    }
----------------------------
+            var rowCount = worksheet.Dimension.Rows;
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            for (int row = 2; row <= rowCount; row++)
+            {
+                var userEmail = worksheet.Cells[row, 1].Text?.Trim();
+                var countryId = worksheet.Cells[row, 2].Text?.Trim();
+                var roleName = worksheet.Cells[row, 3].Text?.Trim();
+                var screenName = worksheet.Cells[row, 4].Text?.Trim();
+                var userType = worksheet.Cells[row, 5].Text?.Trim();
+                var accessLevel = worksheet.Cells[row, 6].Text?.Trim();
+                var assignCountry = worksheet.Cells[row, 7].Text?.Trim();
 
-<script>
-    function uploadExcel() {
-        var fileInput = document.getElementById('excelFile');
-        var file = fileInput.files[0];
-        
-        if (file) {
-            var reader = new FileReader();
-
-            // Define what happens when the file is loaded
-            reader.onload = function (e) {
-                var data = e.target.result;
-
-                // Parse the Excel file using SheetJS
-                var workbook = XLSX.read(data, { type: 'binary' });
-                var sheet = workbook.Sheets[workbook.SheetNames[0]]; // Assuming first sheet
-                var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Convert sheet to array of rows
-
-                // Now send the data to the server for validation
-                validateData(rows);
-            };
-
-            // Read the file as binary string
-            reader.readAsBinaryString(file);
-        }
-    }
-
-    function validateData(rows) {
-        var invalidRows = [];
-
-        // Loop through each row of data and validate it
-        rows.forEach(function(row, rowIndex) {
-            var column1 = row[0]; // First column in the Excel file
-            var column2 = row[1]; // Second column in the Excel file
-            var column3 = row[2]; // Third column in the Excel file
-
-            // Check if the data exists in the SQL table by making an AJAX request
-            $.ajax({
-                url: '@Url.Action("ValidateExcel", "Home")',  // Your controller method for validation
-                type: 'POST',
-                data: JSON.stringify({ column1: column1, column2: column2, column3: column3 }),
-                contentType: 'application/json',
-                async: false, // To ensure the rows are checked sequentially (avoid concurrency issues)
-                success: function (response) {
-                    if (!response.isValid) {
-                        // If validation fails, store the row index and the column name
-                        invalidRows.push({
-                            row: rowIndex + 1, // Adding 1 to match the row number displayed to the user
-                            invalidColumns: response.invalidColumns
-                        });
-                    }
-                },
-                error: function () {
-                    alert("An error occurred while validating the data.");
+                // Collect missing required fields
+                if (string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(screenName) || string.IsNullOrEmpty(userType))
+                {
+                    errorMessages.Add($"Row {row}: Required fields (Email, Role, Screen, User Type) are missing.");
+                    continue;
                 }
-            });
-        });
 
-        // Show the validation result
-        if (invalidRows.length > 0) {
-            var errorMessages = "Validation failed for the following rows and columns:\n";
+                // Validate RoleAccessMapping table
+                var roleAccessId = GetRoleAccessMapping(dbDatabase, roleName, screenName, userType);
+                if (roleAccessId == null)
+                {
+                    errorMessages.Add($"Row {row}: Role '{roleName}', Screen '{screenName}', or Access '{userType}' combination not found in RoleAccessTable.");
+                    continue;
+                }
 
-            invalidRows.forEach(function (invalidRow) {
-                errorMessages += "Row " + invalidRow.row + ": Invalid columns: " + invalidRow.invalidColumns.join(", ") + "\n";
-            });
+                // Step 1: Handle User Details
+                var userId = GetOrCreateUser(dbDatabase, userEmail, out string userName, out string opcoName);
 
-            alert(errorMessages); // Show the validation errors in an alert
-        } else {
-            alert("All rows are valid!");
+                // Step 2: Handle User Role Access Mapping
+                var userRoleAccessMapping = dbDatabase.User_Role_Access_Mapping
+                    .FirstOrDefault(ura => ura.UserId == userId && ura.RoleAccessId == roleAccessId);
+
+                if (userRoleAccessMapping != null)
+                {
+                    userRoleAccessMapping.Country = assignCountry;
+                    dbDatabase.SaveChanges();
+                }
+                else
+                {
+                    var newUserRoleAccessMapping = new User_Role_Access_Mapping
+                    {
+                        UserId = userId,
+                        RoleAccessId = (long)roleAccessId,
+                        Country = assignCountry,
+                        CreatedBy = "System", // Replace with actual logged-in user
+                        CreatedDate = DateTime.Now,
+                        UpdatedBy = "System",
+                        UpdatedDate = DateTime.Now
+                    };
+                    dbDatabase.User_Role_Access_Mapping.Add(newUserRoleAccessMapping);
+                    dbDatabase.SaveChanges();
+                }
+            }
         }
     }
-</script>
+    catch (Exception ex)
+    {
+        errorMessages.Add($"Error processing the file: {ex.Message}");
+    }
+
+    return errorMessages;
+}
