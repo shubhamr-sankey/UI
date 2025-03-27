@@ -1,1 +1,47 @@
- return Json(new { success = false, errorMessages }, JsonRequestBehavior.AllowGet);
+<script type="text/javascript">
+    // Function to handle the form submission and show error messages
+    function uploadFile() {
+        var formData = new FormData();
+        var fileInput = document.getElementById("fileUpload");
+        formData.append("file", fileInput.files[0]);
+
+        // Perform the AJAX request
+        $.ajax({
+            url: '@Url.Action("UploadExcel", "UserRoleAccessMapping")', // URL to your controller action
+            type: 'POST',
+            data: formData,
+            contentType: false,  // Tell jQuery not to set content type
+            processData: false,  // Tell jQuery not to process the data
+            success: function (response) {
+                if (response.success) {
+                    // Success: Show success message in alert
+                    alert(response.message);
+                } else {
+                    // Failure: Show error messages in alert
+                    var errorMsg = "Error(s) found:\n\n";
+                    for (var i = 0; i < response.errorMessages.length; i++) {
+                        errorMsg += response.errorMessages[i] + "\n";
+                    }
+                    alert(errorMsg);
+                }
+            },
+            error: function () {
+                alert("An error occurred while processing your request.");
+            }
+        });
+    }
+</script>
+-------------
+
+@using (Html.BeginForm("", "", FormMethod.Post, new { enctype = "multipart/form-data", id = "uploadForm" }))
+{
+    @Html.AntiForgeryToken()
+    <div class="main-filter-tab" style="margin-top: 10px;">
+        <div>
+            <label for="fileUpload">Select an Excel file:</label>
+            <input type="file" id="fileUpload" name="file" class="form-control" accept=".xls,.xlsx" />
+        </div>
+        <br />
+        <button type="button" class="btn btn-primary" onclick="uploadFile()">Upload</button>
+    </div>
+}
