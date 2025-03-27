@@ -1,3 +1,11 @@
+<!-- File upload form -->
+<input type="file" id="excelFile" accept=".xlsx, .xls" />
+<button type="button" onclick="uploadExcel()">Upload Excel</button>
+
+<!-- Validation result display (optional) -->
+<div id="validationResult"></div>
+
+
 [HttpPost]
     public JsonResult ValidateExcel(string column1, string column2, string column3)
     {
@@ -29,3 +37,79 @@
         
         return Json(new { isValid = isValid, invalidColumns = invalidColumns });
     }
+---------------------------
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    function uploadExcel() {
+        var fileInput = document.getElementById('excelFile');
+        var file = fileInput.files[0];
+        
+        if (file) {
+            var reader = new FileReader();
+
+            // Define what happens when the file is loaded
+            reader.onload = function (e) {
+                var data = e.target.result;
+
+                // Parse the Excel file using SheetJS
+                var workbook = XLSX.read(data, { type: 'binary' });
+                var sheet = workbook.Sheets[workbook.SheetNames[0]]; // Assuming first sheet
+                var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Convert sheet to array of rows
+
+                // Now send the data to the server for validation
+                validateData(rows);
+            };
+
+            // Read the file as binary string
+            reader.readAsBinaryString(file);
+        }
+    }
+
+    function validateData(rows) {
+        var invalidRows = [];
+
+        // Loop through each row of data and validate it
+        rows.forEach(function(row, rowIndex) {
+            var column1 = row[0]; // First column in the Excel file
+            var column2 = row[1]; // Second column in the Excel file
+            var column3 = row[2]; // Third column in the Excel file
+
+            // Check if the data exists in the SQL table by making an AJAX request
+            $.ajax({
+                url: '@Url.Action("ValidateExcel", "Home")',  // Your controller method for validation
+                type: 'POST',
+                data: JSON.stringify({ column1: column1, column2: column2, column3: column3 }),
+                contentType: 'application/json',
+                async: false, // To ensure the rows are checked sequentially (avoid concurrency issues)
+                success: function (response) {
+                    if (!response.isValid) {
+                        // If validation fails, store the row index and the column name
+                        invalidRows.push({
+                            row: rowIndex + 1, // Adding 1 to match the row number displayed to the user
+                            invalidColumns: response.invalidColumns
+                        });
+                    }
+                },
+                error: function () {
+                    alert("An error occurred while validating the data.");
+                }
+            });
+        });
+
+        // Show the validation result
+        if (invalidRows.length > 0) {
+            var errorMessages = "Validation failed for the following rows and columns:\n";
+
+            invalidRows.forEach(function (invalidRow) {
+                errorMessages += "Row " + invalidRow.row + ": Invalid columns: " + invalidRow.invalidColumns.join(", ") + "\n";
+            });
+
+            alert(errorMessages); // Show the validation errors in an alert
+        } else {
+            alert("All rows are valid!");
+        }
+    }
+</script>
