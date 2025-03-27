@@ -1,18 +1,3 @@
- @if (ViewBag.ErrorMessages != null && ViewBag.ErrorMessages.Count > 0)
- {
-     <script type="text/javascript">
-             // Convert the ViewBag.ErrorMessages to a JavaScript array
-             var errorMessages = @Html.Raw(Json.Encode(ViewBag.ErrorMessages));
+var errorMessages = new List<string>();
 
-             // Check if there are any error messages
-             if (errorMessages.length > 0) {
-                 var errorMsg = "Error(s) found:\n\n";
-                 errorMessages.forEach(function(error) {
-                     errorMsg += error + "\n";  // Concatenate each error message
-                 });
-
-                 // Show the error messages in a JavaScript alert
-                 alert(errorMsg);
-             }
-     </script>
- }
+ViewBag.ErrorMessages = errorMessages;
