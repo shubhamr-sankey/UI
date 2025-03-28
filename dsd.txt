@@ -1,44 +1,107 @@
-<input type="file" name="file" id="fileUpload" accept=".xlsx,.xls" />
-<button type="button" id="uploadButton">Upload</button>
+<script type="text/javascript">
+    // Function to validate emails before form submission
+    function validateEmails(event) {
+        const fileInput = document.getElementById('fileUpload');
+        if (!fileInput.files.length) {
+            alert("Please upload a file first.");
+            return; // Prevent further execution
+        }
 
-<script>
-    $(document).ready(function () {
-        $('#uploadButton').click(function (e) {
-            e.preventDefault(); // Prevent default form submission
+        const file = fileInput.files[0];
 
-            var fileInput = $('#fileUpload')[0]; // Get the file input
-            var file = fileInput.files[0]; // Get the selected file
+        // Read the file using FileReader
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const data = event.target.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
 
-            if (!file) {
-                alert("Please select a file.");
-                return;
+            // Assuming the data is in the first sheet
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
+
+            // Find the index of the "UserEmail" column
+            const emailColumnIndex = rows[0].indexOf('UserEmail');
+            if (emailColumnIndex === -1) {
+                alert("No 'UserEmail' column found in the file.");
+                return; // Prevent further execution
             }
 
-            var formData = new FormData(); // Create a new FormData object
-            formData.append('file', file); // Append the file to FormData
+            // Validate email in each row
+            let invalidRows = [];
+            const emailRegex = /^[a-zA-Z0-9._-]+(@@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
 
-            // Include the anti-forgery token in the request
-            var token = $('input[name="__RequestVerificationToken"]').val();
-            formData.append('__RequestVerificationToken', token);
-
-            $.ajax({
-                url: '@Url.Action("UploadExcel", "UserRoleAccessMapping")', // Replace with your action URL
-                type: 'POST',
-                dataType: 'json',
-                data: formData, // Send the FormData object
-                processData: false, // Important for file uploads
-                contentType: false, // Important for file uploads
-                success: function (data) {
-                    if (data.success) {
-                        alert("File processed successfully.");
-                    } else {
-                        alert("Error processing file: " + data.errorMessages);
-                    }
-                },
-                error: function (xhr, status, error) {
-                    alert("An error occurred while processing your request.");
+            for (let i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
+                const email = rows[i][emailColumnIndex];
+                if (email && !emailRegex.test(email)) {
+                    invalidRows.push({
+                        row: i + 1,  // Row number starts from 1
+                        column: 'UserEmail',
+                        email: email
+                    });
                 }
-            });
+            }
+
+            // Show the result in a popup (alert)
+            if (invalidRows.length > 0) {
+                let resultMessage = 'Invalid Emails Found:\n\n';
+                invalidRows.forEach(item => {
+                    resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}\n`;
+                });
+                alert(resultMessage);
+            } else {
+                // If all emails are valid, submit the form programmatically
+                document.getElementById('uploadForm').submit();
+            }
+        };
+
+        // Read the uploaded file as a binary string
+        reader.readAsBinaryString(file);
+    }
+</script>
+
+--------------
+
+    <input type="file" name="file" id="fileUpload" accept=".xlsx,.xls" />
+    <button type="button" id="uploadButton">Uploading</button>
+
+    <script>
+$(document).ready(function () {
+    $('#uploadButton').click(function (e) {
+        e.preventDefault(); // Prevent default form submission
+
+        var fileInput = $('#fileUpload')[0]; // Get the file input
+        var file = fileInput.files[0]; // Get the selected file
+
+        if (!file) {
+            alert("Please select a file.");
+            return;
+        }
+
+        var formData = new FormData(); // Create a new FormData object
+        formData.append('file', file); // Append the file to FormData
+
+        // Include the anti-forgery token in the request
+        var token = $('input[name="__RequestVerificationToken"]').val();
+        formData.append('__RequestVerificationToken', token);
+
+        $.ajax({
+            url: '@Url.Action("UploadExcel", "UserRoleAccessMapping")', // Replace with your action URL
+            type: 'POST',
+            dataType: 'json',
+            data: formData, // Send the FormData object
+            processData: false, // Important for file uploads
+            contentType: false, // Important for file uploads
+            success: function (data) {
+                if (data.success) {
+                    alert("File processed successfully.");
+                } else {
+                    alert("Error processing file: " + data.errorMessages);
+                }
+            },
+            error: function (xhr, status, error) {
+                alert("An error occurred while processing your request.");
+            }
         });
     });
-</script>
+});
+    </script>
