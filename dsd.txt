@@ -1,138 +1,284 @@
-public List<string> ProcessExcelFile(IRBADatabaseEntities dbDatabase, Stream fileStream)
-{
-    var errorMessages = new List<string>();
+ $('#uploadButton').click(function (e) {
+     e.preventDefault(); // Prevent default form submission
 
-    try
-    {
-        using (var package = new ExcelPackage(fileStream))
-        {
-            // Check if there are any worksheets
-            if (package.Workbook.Worksheets.Count == 0)
-            {
-                errorMessages.Add("The uploaded Excel file contains no worksheets.");
-                return errorMessages;
-            }
+     var fileInput = $('#fileUpload')[0]; // Get the file input
+     var file = fileInput.files[0]; // Get the selected file
 
-            // Access the first worksheet safely
-            var worksheet = package.Workbook.Worksheets[1];
+     if (!file) {
+         alert("Please select a file.");
+         return;
+     }
 
-            // Check if the worksheet has any data
-            if (worksheet.Dimension == null)
-            {
-                errorMessages.Add("The first worksheet is empty.");
-                return errorMessages;
-            }
+     // Create a FileReader to read the file
+     const reader = new FileReader();
+     reader.onload = function (event) {
+         const data = event.target.result;
+         const workbook = XLSX.read(data, { type: 'binary' });
 
-            var rowCount = worksheet.Dimension.Rows;
+         // Assuming the data is in the first sheet
+         const sheet = workbook.Sheets[workbook.SheetNames[0]];
+         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as an array of rows
 
-            for (int row = 2; row <= rowCount; row++)
-            {
-                var userEmail = worksheet.Cells[row, 1].Text?.Trim();
-                var countryId = worksheet.Cells[row, 2].Text?.Trim();
-                var roleName = worksheet.Cells[row, 3].Text?.Trim();
-                var screenName = worksheet.Cells[row, 4].Text?.Trim();
-                var userType = worksheet.Cells[row, 5].Text?.Trim();
-                var accessLevel = worksheet.Cells[row, 6].Text?.Trim();
-                var assignCountry = worksheet.Cells[row, 7].Text?.Trim();
+         // Find the index of the "UserEmail" and "AccessLevel" columns
+         const emailColumnIndex = rows[0].indexOf('UserEmail');
+         const accessLevelColumnIndex = rows[0].indexOf('AccessLevel');
 
-                // Collect missing required fields
-                if (string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(screenName) || string.IsNullOrEmpty(userType))
-                {
-                    errorMessages.Add($"Row {row}: Required fields (Email, Role, Screen, User Type) are missing.");
-                    continue;
-                }
+         // Validate if the columns exist
+         if (emailColumnIndex === -1) {
+             alert("No 'UserEmail' column found in the file.");
+             return; // Prevent further execution
+         }
+         if (accessLevelColumnIndex === -1) {
+             alert("No 'AccessLevel' column found in the file.");
+             return; // Prevent further execution
+         }
 
-                // Validate RoleAccessMapping table
-                var roleAccessId = GetRoleAccessMapping(dbDatabase, roleName, screenName, userType);
-                if (roleAccessId == null)
-                {
-                    errorMessages.Add($"Row {row}: Role '{roleName}', Screen '{screenName}', or Access '{userType}' combination not found in RoleAccessTable.");
+         // Initialize arrays to hold invalid rows for both email and access level
+         let invalidEmailRows = [];
+         let invalidAccessLevelRows = [];
+         const emailRegex = /^[a-zA-Z0-9._-]+(@@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/; // Fixed email regex
 
-                    continue;
-                    
-                }
+         // Loop through each row to validate both email and access level
+         for (let i = 1; i < rows.length; i++) {
+             const email = rows[i][emailColumnIndex];
+             const accessLevel = rows[i][accessLevelColumnIndex];
 
-                // Step 1: Handle User Details
-                var userId = GetOrCreateUser(dbDatabase, userEmail, countryId, out string userName, out string opcoName);
+             // Validate the email address
+             if (email && !emailRegex.test(email)) {
+                 invalidEmailRows.push({
+                     row: i + 1,
+                     column: 'UserEmail',
+                     email: email
+                 });
+             }
 
-                // Step 2: Handle User Role Access Mapping
-                var userRoleAccessMapping = dbDatabase.User_Role_Access_Mapping
-                    .FirstOrDefault(ura => ura.UserId == userId && ura.RoleAccessId == roleAccessId);
+             // Validate the AccessLevel column (check if it contains C, R, U, D, or E)
+             const accessLevelValidRegex = /[CRUDV]/i; // Regex to check if any of 'C', 'R', 'U', 'D', 'E' exists
+             if (accessLevel && !accessLevelValidRegex.test(accessLevel)) {
+                 invalidAccessLevelRows.push({
+                     row: i + 1,
+                     column: 'AccessLevel',
+                     accessLevel: accessLevel
+                 });
+             }
+         }
 
-                if (userRoleAccessMapping != null)
-                {
-                    userRoleAccessMapping.Country = assignCountry;
-                    dbDatabase.SaveChanges();
-                }
-                else
-                {
-                    var newUserRoleAccessMapping = new User_Role_Access_Mapping
-                    {
-                        UserId = userId,
-                        RoleAccessId = (long)roleAccessId,
-                        Country = assignCountry,
-                        CreatedBy = "System", // Replace with actual logged-in user
-                        CreatedDate = DateTime.Now,
-                        UpdatedBy = "System",
-                        UpdatedDate = DateTime.Now
-                    };
-                    dbDatabase.User_Role_Access_Mapping.Add(newUserRoleAccessMapping);
-                    dbDatabase.SaveChanges();
-                }
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        errorMessages.Add($"Error processing the file: {ex.Message}");
-    }
+         // Combine invalid email and access level rows into a single array
+         let invalidRows = [...invalidEmailRows, ...invalidAccessLevelRows];
 
-    return errorMessages;
-}
+         // Show the result in a popup (alert)
+         if (invalidRows.length > 0) {
+             let resultMessage = 'Invalid Entries Found:\n\n';
+             invalidRows.forEach(item => {
+                 if (item.column === 'UserEmail') {
+                     resultMessage += `Row ${item.row}, Column ${item.column} - Invalid Email: ${item.email}\n`;
+                 } else if (item.column === 'AccessLevel') {
+                     resultMessage += `Row ${item.row}, Column ${item.column} - Invalid AccessLevel: ${item.accessLevel}\n`;
+                 }
+             });
+             alert(resultMessage);
+         } else {
+             // If all emails and access levels are valid, proceed with file upload via AJAX
+             var formData = new FormData();
+             formData.append('file', file); // Append the file to FormData
 
+             // Include the anti-forgery token in the request
+             var token = $('input[name="__RequestVerificationToken"]').val();
+             formData.append('__RequestVerificationToken', token);
 
-// Fetch or create User and return UserId, UserName, and OpcoNamge
-private long GetOrCreateUser(IRBADatabaseEntities dbDatabase, string email, string countryName, out string userName, out string opcoName)
-{
-    // Extract username and OpCo name from the email
-    var emailParts = email.Split('@');
-    var userId = emailParts[0]; // Extract part before @ (e.g., "shubham.k")
-    userName = userId.Replace('.', ' '); // Replace '.' with a space (e.g., "shubham k")
-    opcoName = emailParts[1].ToLower(); // Extract part after @ (e.g., "global.ntt")
+             $.ajax({
+                 url: '@Url.Action("UploadExcel", "UserRoleAccessMapping")', // Replace with your action URL
+                 type: 'POST',
+                 dataType: 'json',
+                 data: formData, // Send the FormData object
+                 processData: false, // Important for file uploads
+                 contentType: false, // Important for file uploads
+                 success: function (data) {
+                     if (data.success) {
+                         alert("File processed successfully.");
+                     } else {
+                         alert("Error processing file: " + data.errorMessages);
+                     }
+                 },
+                 error: function (xhr, status, error) {
+                     alert("Success done.");
+                 }
+             });
+         }
+     };
 
-    // Determine if the email belongs to "global.ntt" domain
-    bool isExternal = !opcoName.Contains("global.ntt");
+     // Read the uploaded file as a binary string
+     reader.readAsBinaryString(file);
+ });
 
-    // Check if the user already exists
-    var existingUser = dbDatabase.User_Details.FirstOrDefault(u => u.User_Email == email);
-    if (existingUser != null)
-    {
-        // User exists, return the existing Id
-        return existingUser.Id;
-    }
+ $(document).ready(function () {
+     modelData = @Html.Raw(Json.Encode(Model));
+     console.log("modelData ", modelData);
+     $('#RoleName').change(function () {
+         var selectedRoleName = $(this).val();
+         console.log('selectedRoleName', selectedRoleName)
+         var selectedAccessName = document.getElementById('AccessName').value;
+         var selectedCountryName = document.getElementById('CountryName').value;
+         var selectedScreenName = document.getElementById('ScreenName').value;
+         var searchedValue = document.getElementById("searchFieldActiveDeals").value;
+         var targetUrl = '@Url.Action("UserRoleAccessMappingTableData", "UserRoleAccessMapping")';
+         var param = {
+             roleName: selectedRoleName, accessName: selectedAccessName, countryName: selectedCountryName,
+             screenName: selectedScreenName, searchValue: searchedValue.trim(),
+             skip: 0
+         };
+         showLoader();
+         $.ajax({
+             url: targetUrl,
+             type: 'GET',
+             data: param,
+             success: function (response) {
+                 if (response == "Error") {
+                     hideLoader();
+                     var Message = document.getElementById("submitMessage");
+                     Message.innerHTML = "something went wrong. Please try again";
+                     Message.style = "color:red";
+                     $('#saveAccessDetailspopUp').modal({
+                         backdrop: 'static',
+                         keyboard: false
+                     });
+                 }
+                 else {
+                     hideLoader();
+                     console.log('response ', response);
+                     $('#tableContainer').html(response);
+                 }
+             },
+             error: function (xhr, status, error) {
+                 console.error("AJAX Error: " + status + error);
+                 hideLoader();
+             }
+         });
+     });
 
-    // Look up the CountryId from the CountryDetails table based on the countryName
-    var countryDetails = dbDatabase.Country_Details.FirstOrDefault(c => c.Country_Id.Equals(countryName, StringComparison.OrdinalIgnoreCase));
+     $('#AccessName').change(function () {
+         var selectedAccessName = $(this).val();
+         console.log('selectedAccessName', selectedAccessName)
+         var selectedRoleName = document.getElementById('RoleName').value;
+         var selectedCountryName = document.getElementById('CountryName').value;
+         var selectedScreenName = document.getElementById('ScreenName').value;
+         var searchedValue = document.getElementById("searchFieldActiveDeals").value;
+         var targetUrl = '@Url.Action("UserRoleAccessMappingTableData", "UserRoleAccessMapping")';
+         var param = {
+             roleName: selectedRoleName, accessName: selectedAccessName, countryName: selectedCountryName,
+             screenName: selectedScreenName, searchValue: searchedValue.trim(),
+             skip: 0
+         };
+         showLoader();
+         $.ajax({
+             url: targetUrl,
+             type: 'GET',
+             data: param,
+             success: function (response) {
+                 if (response == "Error") {
+                     hideLoader();
+                     var Message = document.getElementById("submitMessage");
+                     Message.innerHTML = "something went wrong. Please try again";
+                     Message.style = "color:red";
+                     $('#saveAccessDetailspopUp').modal({
+                         backdrop: 'static',
+                         keyboard: false
+                     });
+                 }
+                 else {
+                     hideLoader();
+                     console.log('response ', response);
+                     $('#tableContainer').html(response);
+                 }
+             },
+             error: function (xhr, status, error) {
+                 console.error("AJAX Error: " + status + error);
+                 hideLoader();
+             }
+         });
+     });
 
-    // If the country is found, use the corresponding CountryId, otherwise, assign a default CountryId (e.g., "IN")
-    string countryId = countryDetails != null ? countryDetails.Country_Id : "IN"; // Default to "IN" if not found
+     $('#CountryName').change(function () {
+         var selectedCountryName = $(this).val();
+         console.log('selectedCountryName', selectedAccessName)
+         var selectedRoleName = document.getElementById('RoleName').value;
+         var selectedAccessName = document.getElementById('AccessName').value;
+         var selectedScreenName = document.getElementById('ScreenName').value;
+         var searchedValue = document.getElementById("searchFieldActiveDeals").value;
+         var targetUrl = '@Url.Action("UserRoleAccessMappingTableData", "UserRoleAccessMapping")';
+         var param = {
+             roleName: selectedRoleName, accessName: selectedAccessName, countryName: selectedCountryName,
+             screenName: selectedScreenName, searchValue: searchedValue.trim(),
+             skip: 0
+         }
+         showLoader();
+         $.ajax({
+             url: targetUrl,
+             type: 'GET',
+             data: param,
+             success: function (response) {
+                 if (response == "Error") {
+                     hideLoader();
+                     var Message = document.getElementById("submitMessage");
+                     Message.innerHTML = "something went wrong. Please try again";
+                     Message.style = "color:red";
+                     $('#saveAccessDetailspopUp').modal({
+                         backdrop: 'static',
+                         keyboard: false
+                     });
+                 }
+                 else {
+                     hideLoader();
+                     console.log('response ', response);
+                     $('#tableContainer').html(response);
+                 }
+             },
+             error: function (xhr, status, error) {
+                 console.error("AJAX Error: " + status + error);
+                 hideLoader();
+             }
+         });
+     });
 
-    // If user doesn't exist, create a new user
-    var newUser = new User_Details
-    {
-        User_Id = userId, // User Id from email (e.g., "shubham.k")
-        User_Name = userName, // User Name (e.g., "shubham k")
-        User_Email = email, // Email
-        OpCoName = opcoName, // OpCo Name (e.g., "global.ntt")
-        IsExternal = isExternal ? true : false, // Set IsExternal (1 for external, 0 for internal)
-        Country_Id = countryId, // Default country
-        User_Group = "NA" // Default User Group
-    };
-
-    // Save the new user in the database
-    dbDatabase.User_Details.Add(newUser);
-    dbDatabase.SaveChanges();
-
-    // Return the new user's Id
-    return newUser.Id;
-}
+     $('#ScreenName').change(function () {
+         var selectedScreenName = $(this).val();
+         console.log('selectedScreenName', selectedAccessName)
+         var selectedRoleName = document.getElementById('RoleName').value;
+         var selectedAccessName = document.getElementById('AccessName').value;
+         var selectedCountryName = document.getElementById('CountryName').value;
+         var searchedValue = document.getElementById("searchFieldActiveDeals").value;
+         var targetUrl = '@Url.Action("UserRoleAccessMappingTableData", "UserRoleAccessMapping")';
+         var param = {
+             roleName: selectedRoleName, accessName: selectedAccessName, countryName: selectedCountryName,
+             screenName: selectedScreenName, searchValue: searchedValue.trim(),
+             skip: 0
+         };
+         showLoader();
+         $.ajax({
+             url: targetUrl,
+             type: 'GET',
+             data: param,
+             success: function (response) {
+                 if (response == "Error") {
+                     hideLoader();
+                     var Message = document.getElementById("submitMessage");
+                     Message.innerHTML = "something went wrong. Please try again";
+                     Message.style = "color:red";
+                     $('#saveAccessDetailspopUp').modal({
+                         backdrop: 'static',
+                         keyboard: false
+                     });
+                 }
+                 else {
+                     hideLoader();
+                     console.log('response ', response);
+                     $('#tableContainer').html(response);
+                 }
+             },
+             error: function (xhr, status, error) {
+                 console.error("AJAX Error: " + status + error);
+                 hideLoader();
+             }
+         });
+     });
+ });
