@@ -1,114 +1,86 @@
- [HttpGet]
- public ActionResult ExportExcel(string roleName = "", string accessName = "", string countryName = "", string screenName = "", string searchValue = "")
- {
-     try
-     {
-         // Fetch filtered data using the service with filter parameters
-         var userRoleAccessData = _userRoleAccessMappingService.GetData(dbDatabase, roleName, accessName, countryName, screenName, searchValue);
-
-         // Create a new Excel package
-         using (var package = new ExcelPackage())
-         {
-             var worksheet = package.Workbook.Worksheets.Add("UserRoleAccessMapping");
-
-             // Add headers
-             worksheet.Cells[1, 1].Value = "User Email";
-             worksheet.Cells[1, 2].Value = "Country";
-             worksheet.Cells[1, 3].Value = "RoleName";
-             worksheet.Cells[1, 4].Value = "AccessType";
-             worksheet.Cells[1, 5].Value = "AccessLevel";
-             worksheet.Cells[1, 6].Value = "ScreenName";
-             worksheet.Cells[1, 7].Value = "AssignCountry";
-
-             // Populate data based on filtered results
-             int row = 2;
-             foreach (var item in userRoleAccessData.UserRoleAccessMappings)
-             {
-                 worksheet.Cells[row, 1].Value = item.UserDetails.User_Email;
-                 worksheet.Cells[row, 2].Value = item.UserDetails.Country_Id;
-                 worksheet.Cells[row, 3].Value = item.RoleAccessMappings.RoleName;
-                 worksheet.Cells[row, 4].Value = item.RoleAccessMappings.AccessName;
-                 worksheet.Cells[row, 5].Value = item.RoleAccessMappings.AccessLevel;
-                 worksheet.Cells[row, 6].Value = item.RoleAccessMappings.ScreenName;
-                 worksheet.Cells[row, 7].Value = item.UserRoleAccessMappings.Country;
-                 row++;
-             }
-
-             // Set styles for header
-             using (var range = worksheet.Cells[1, 1, 1, 7])
-             {
-                 range.Style.Font.Bold = true;
-                 range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
-                 range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
-                 range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGray);
-             }
-
-             // Auto-fit columns
-             worksheet.Cells.AutoFitColumns();
-
-             // Stream the Excel file to the user
-             var excelData = package.GetAsByteArray();
-             return File(excelData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "UserRoleAccessMapping.xlsx");
-         }
-     }
-     catch (Exception ex)
-     {
-         Debug.WriteLine($"Error exporting to Excel: {ex.Message}");
-         return new HttpStatusCodeResult(500, "Internal Server Error");
-     }
- }
-
-
 function exportToExcel() {
-     // Capture the current filter values from the dropdowns and search input
-     var roleName = document.getElementById('RoleName').value;
-     var accessName = document.getElementById('AccessName').value;
-     var countryName = document.getElementById('CountryName').value;
-     var screenName = document.getElementById('ScreenName').value;
-     var searchValue = document.getElementById('searchFieldActiveDeals').value;
+    // Capture the current filter values from the dropdowns and search input
+    var roleName = document.getElementById('RoleName').value;
+    var accessName = document.getElementById('AccessName').value;
+    var countryName = document.getElementById('CountryName').value;
+    var screenName = document.getElementById('ScreenName').value;
+    var searchValue = document.getElementById('searchFieldActiveDeals').value;
 
-     // Construct the URL with filter parameters
-     var url = '@Url.Action("ExportExcel", "UserRoleAccessMapping")' +
-         '?roleName=' + encodeURIComponent(roleName) +
-         '&accessName=' + encodeURIComponent(accessName) +
-         '&countryName=' + encodeURIComponent(countryName) +
-         '&screenName=' + encodeURIComponent(screenName) +
-         '&searchValue=' + encodeURIComponent(searchValue);
+    // Construct the URL with filter parameters
+    var url = '@Url.Action("ExportExcel", "UserRoleAccessMapping")' +
+        '?roleName=' + encodeURIComponent(roleName) +
+        '&accessName=' + encodeURIComponent(accessName) +
+        '&countryName=' + encodeURIComponent(countryName) +
+        '&screenName=' + encodeURIComponent(screenName) +
+        '&searchValue=' + encodeURIComponent(searchValue);
 
-     // Trigger the download by redirecting to the URL
-     window.location.href = url;
+    // Trigger the download by redirecting to the URL
+    window.location.href = url;
+}
+=-------------------------
 
- }
-  <div class="main-filter-tab">
-      <div class="filters">
-          @Html.DropDownListFor(m => m.RoleName, Model.RoleList, "Select Role", new { @class = "form-select country-dropdown" })
-          @Html.HiddenFor(m => m.RoleName)
-          @Html.DropDownListFor(m => m.AccessName, Model.AccessNameList, "Select Access Name", new { @class = "form-select country-dropdown" })
-          @Html.HiddenFor(m => m.AccessName)
-          @Html.DropDownListFor(m => m.CountryName, Model.CountryList, "Select Country Name", new { @class = "form-select country-dropdown" })
-          @Html.HiddenFor(m => m.CountryName)
-          @Html.DropDownListFor(m => m.ScreenName, Model.ScreenNameList, "Select Screen Name", new { @class = "form-select country-dropdown" })
-          @Html.HiddenFor(m => m.ScreenName)
-          <div class="searchboxDivContainer">
-              <input id="searchFieldActiveDeals" type="text" class="searchTextInput" placeholder="Search User Name.." onkeyup="searchFilterFun('','','Search')" />
-          </div>
+<div class="col-md-1">
+    <!-- Make the image clickable and trigger the ExportToExcel action when clicked -->
+    <img style="cursor:pointer;" title="Export To Excel" id="excelsaveid" src="~/Content/docImage/excel.png" onclick="exportToExcel()" />
+</div>
+------------------------
 
+[HttpGet]
+public ActionResult ExportExcel(string roleName = "", string accessName = "", string countryName = "", string screenName = "", string searchValue = "")
+{
+    try
+    {
+        // Fetch filtered data using the service with filter parameters
+        var userRoleAccessData = _userRoleAccessMappingService.GetData(dbDatabase, roleName, accessName, countryName, screenName, searchValue);
 
-      </div>
+        // Create a new Excel package
+        using (var package = new ExcelPackage())
+        {
+            var worksheet = package.Workbook.Worksheets.Add("UserRoleAccessMapping");
 
-      @*-------skr Uplaod---*@
+            // Add headers
+            worksheet.Cells[1, 1].Value = "User Email";
+            worksheet.Cells[1, 2].Value = "Country";
+            worksheet.Cells[1, 3].Value = "RoleName";
+            worksheet.Cells[1, 4].Value = "AccessType";
+            worksheet.Cells[1, 5].Value = "AccessLevel";
+            worksheet.Cells[1, 6].Value = "ScreenName";
+            worksheet.Cells[1, 7].Value = "AssignCountry";
 
+            // Populate data based on filtered results
+            int row = 2;
+            foreach (var item in userRoleAccessData.UserRoleAccessMappings)
+            {
+                worksheet.Cells[row, 1].Value = item.UserDetails.User_Email;
+                worksheet.Cells[row, 2].Value = item.UserDetails.Country_Id;
+                worksheet.Cells[row, 3].Value = item.RoleAccessMappings.RoleName;
+                worksheet.Cells[row, 4].Value = item.RoleAccessMappings.AccessName;
+                worksheet.Cells[row, 5].Value = item.RoleAccessMappings.AccessLevel;
+                worksheet.Cells[row, 6].Value = item.RoleAccessMappings.ScreenName;
+                worksheet.Cells[row, 7].Value = item.UserRoleAccessMappings.Country;
+                row++;
+            }
 
+            // Set styles for header
+            using (var range = worksheet.Cells[1, 1, 1, 7])
+            {
+                range.Style.Font.Bold = true;
+                range.Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Center;
+                range.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.LightGray);
+            }
 
-      <div class="col-md-1">
-          <!-- Make the image clickable and trigger the ExportToExcel action when clicked -->
-          <a href="@Url.Action("ExportExcel", "UserRoleAccessMapping")">
-              <img style="cursor:pointer;" title="Export To Excel" id="excelsaveid" src="~/Content/docImage/excel.png" onclick="exportToExcel()" />
-          </a>
+            // Auto-fit columns
+            worksheet.Cells.AutoFitColumns();
 
-
-
-      </div>
-
-      <button type="button" class="submitButton" id="submit" onclick="newRecord()"> Add New User </button>
-  </div>
+            // Stream the Excel file to the user
+            var excelData = package.GetAsByteArray();
+            return File(excelData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "UserRoleAccessMapping.xlsx");
+        }
+    }
+    catch (Exception ex)
+    {
+        Debug.WriteLine($"Error exporting to Excel: {ex.Message}");
+        return new HttpStatusCodeResult(500, "Internal Server Error");
+    }
+}
