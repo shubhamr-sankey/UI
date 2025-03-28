@@ -1,3 +1,6 @@
- headers: {
+data: new FormData($('#uploadForm')[0]), // Send the form data including the file
+    processData: false,  // Important for file uploads
+    contentType: false,  // Important for file uploads
+    headers: {
         'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()  // Include anti-forgery token
     },
