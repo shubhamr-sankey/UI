@@ -1,4 +1,68 @@
-<button id="callActionButton" class="btn btn-primary">Call Action</button>
+ public ActionResult newview()
+ {
+     return View();
+ }
+ [HttpPost]
+ public ActionResult newviewtest()
+ {
+     try
+     {
+         // Some logic
+     }
+     catch (Exception ex)
+     {
+         return Json(new { success = false, message = ex.Message }, JsonRequestBehavior.AllowGet);
+     }
 
-$(document).ready(function () {
-    $('#callActionButton').click(function () {
+     return Json(new { success = true }, JsonRequestBehavior.AllowGet);
+ }
+
+----
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alert Example</title>
+</head>
+<body>
+    <h1>Welcome to My Page</h1>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  
+    <!-- File upload input -->
+    <input type="file" id="fileUpload" accept=".xlsx, .xls" />
+
+    <button id="callActionButton" class="btn btn-primary">Call Action</button>
+
+    <!-- Validation result display (optional) -->
+   
+
+    <script>
+        $(document).ready(function () {
+            $('#callActionButton').click(function () {
+        // Example AJAX call
+        $.ajax({
+            url: '@Url.Action("newviewtest", "UserRoleAccessMapping")', // replace with your action URL
+            type: 'POST', // or GET based on your request type
+            dataType: 'json',
+            success: function (data) {
+                if (data.success) {
+                    // If success, you can handle it as needed, e.g. redirect or show success message
+                } else {
+                    // Show error message in a popup (alert)
+                    alert(data.message); // Display the error message from the JSON response
+                }
+            },
+            error: function () {
+                // Optionally handle failure
+                alert("An error occurred while processing your request.");
+            }
+        });
+    });
+    </script>
+
+
+
+
+</body>
+</html >
+
