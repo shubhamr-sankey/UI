@@ -1,39 +1,4 @@
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<button id="callActionButton" class="btn btn-primary">Call Action</button>
 
-public JsonResult SomeAction()
-{
-    try
-    {
-        // Some logic
-    }
-    catch (Exception ex)
-    {
-        return Json(new { success = false, message = ex.Message }, JsonRequestBehavior.AllowGet);
-    }
-
-    return Json(new { success = true }, JsonRequestBehavior.AllowGet);
-}
-
-
-<script>
-    $(document).ready(function () {
-        // Example AJAX call
-        $.ajax({
-            url: '@Url.Action("SomeAction", "ControllerName")', // replace with your action URL
-            type: 'POST', // or GET based on your request type
-            dataType: 'json',
-            success: function (data) {
-                if (data.success) {
-                    // If success, you can handle it as needed, e.g. redirect or show success message
-                } else {
-                    // Show error message in a popup (alert)
-                    alert(data.message); // Display the error message from the JSON response
-                }
-            },
-            error: function () {
-                // Optionally handle failure
-                alert("An error occurred while processing your request.");
-            }
-        });
-    });
-</script>
+$(document).ready(function () {
+    $('#callActionButton').click(function () {
