@@ -1,45 +1,51 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Alert Example</title>
-</head>
-<body>
-    <h1>Welcome to My Page</h1>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.1/xlsx.full.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  
-    <!-- File upload input -->
-    <input type="file" id="fileUpload" accept=".xlsx, .xls" />
+[HttpPost]
+[ValidateAntiForgeryToken]
+public ActionResult UploadExcel(HttpPostedFileBase file)
+    {
 
-    <button id="callActionButton" class="btn btn-primary">Call Action</button>
+    if (file != null && file.ContentLength > 0)
+    {
+        // Validate the file extension (Excel files only)
+        var validExtensions = new[] { ".xls", ".xlsx" };
+        var fileExtension = Path.GetExtension(file.FileName).ToLower();
 
-    <!-- Validation result display (optional) -->
-   
-    <script>
-        $(document).ready(function () {
-            $('#callActionButton').click(function () {
-                // Example AJAX call
-                $.ajax({
-                    url: '@Url.Action("newviewtest", "UserRoleAccessMapping")', // Replace with your action URL
-                    type: 'POST', // Make sure you're using POST method
-                    dataType: 'json',
-                    success: function (data) {
-                        if (data.success) {
-                            // Handle success (e.g., show success message, redirect, etc.)
-                            alert('Success: ' + data.message);
-                        } else {
-                            // Show error message in a popup (alert)
-                            alert('Error: ' + data.message); // Display the error message from the JSON response
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        // Optionally handle failure
-                        alert("An error occurred while processing your request.");
-                        console.log("Error details: " + error);  // Log error details to console for debugging
-                    }
-                });
-            });
-        });
-    </script>
-</body>
-</html>
+        if (!validExtensions.Contains(fileExtension))
+        {
+            ViewBag.ErrorMessage = "Please upload a valid Excel file (xls, xlsx).";
+            return View("UserRoleAccessMappingView");
+        }
+
+
+
+        // Process the uploaded Excel file using the service
+        List<string> errorMessages = _userRoleAccessMappingService.ProcessExcelFile(dbDatabase, file.InputStream);
+
+        if (errorMessages.Count > 0)
+        {
+            // Add validation for missing RoleName, ScreenName, or AccessName
+            var missingDetails = errorMessages.Where(msg => msg.Contains("Role") || msg.Contains("Screen") || msg.Contains("Access")).ToList();
+
+            return Json(new { success = false, errorMessages }, JsonRequestBehavior.AllowGet);
+            //return Content($"<script>alert('{errorMessages}');</script>");
+
+            if (missingDetails.Any())
+            {
+                // If specific validation errors are found, show them in a popup
+                ViewBag.ErrorMessages = missingDetails;
+                return View("UserRoleAccessMappingView");  // Or your specific view
+            }
+
+            // Show general error messages if present
+            ViewBag.ErrorMessages = errorMessages;
+            return View("UserRoleAccessMappingView");
+        }
+
+        // If no errors, display a success message
+        ViewBag.SuccessMessage = "Excel file processed successfully!";
+        return RedirectToAction("UserRoleAccessMappingView");
+    }
+
+    // If no file was uploaded, show an error
+    ViewBag.ErrorMessage = "Please upload a valid Excel file.";
+    return View("UserRoleAccessMappingView");
+}
