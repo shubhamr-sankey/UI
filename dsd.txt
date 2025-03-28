@@ -1,24 +1,2 @@
-<style>
-    /* Style the file input to reduce its size */
-    #fileUpload {
-        width: 200px; /* Set the width of the file input */
-        margin-right: 10px; /* Add some space between file input and button */
-    }
-
-    /* Style the upload button to match the file input height */
-    #uploadButton {
-        height: 35px; /* Match the height of the file input */
-        padding: 0 15px; /* Optional: add padding to the button */
-    }
-
-    /* Optional: Style the container to align the button next to the file input */
-    .upload-container {
-        display: flex;
-        align-items: center; /* Align items vertically in the center */
-    }
-</style>
-
-<div class="upload-container">
-    <input type="file" name="file" id="fileUpload" accept=".xlsx,.xls" />
-    <button type="button" id="uploadButton">Upload</button>
-</div>
+error: function (xhr, status, error) {
+    alert("Sucess done .");
