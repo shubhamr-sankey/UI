@@ -1,1 +1,1 @@
-testing
+ajax wil be called when user click-->> AJAX call
