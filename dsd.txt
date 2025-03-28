@@ -1,91 +1,44 @@
- public List<string> ProcessExcelFile(IRBADatabaseEntities dbDatabase, Stream fileStream)
+ private long GetOrCreateUser(IRBADatabaseEntities dbDatabase, string email, string countryName, out string userName, out string opcoName)
  {
-     var errorMessages = new List<string>();
+     // Extract username and OpCo name from the email
+     var emailParts = email.Split('@');
+     var userId = emailParts[0]; // Extract part before @ (e.g., "shubham.k")
+     userName = userId.Replace('.', ' '); // Replace '.' with a space (e.g., "shubham k")
+     opcoName = emailParts[1].ToLower(); // Extract part after @ (e.g., "global.ntt")
 
-     try
+     // Determine if the email belongs to "global.ntt" domain
+     bool isExternal = !opcoName.Contains("global.ntt");
+
+     // Check if the user already exists
+     var existingUser = dbDatabase.User_Details.FirstOrDefault(u => u.User_Email == email);
+     if (existingUser != null)
      {
-         using (var package = new ExcelPackage(fileStream))
-         {
-             // Check if there are any worksheets
-             if (package.Workbook.Worksheets.Count == 0)
-             {
-                 errorMessages.Add("The uploaded Excel file contains no worksheets.");
-                 return errorMessages;
-             }
-
-             // Access the first worksheet safely
-             var worksheet = package.Workbook.Worksheets[1];
-
-             // Check if the worksheet has any data
-             if (worksheet.Dimension == null)
-             {
-                 errorMessages.Add("The first worksheet is empty.");
-                 return errorMessages;
-             }
-
-             var rowCount = worksheet.Dimension.Rows;
-
-             for (int row = 2; row <= rowCount; row++)
-             {
-                 var userEmail = worksheet.Cells[row, 1].Text?.Trim();
-                 var countryId = worksheet.Cells[row, 2].Text?.Trim();
-                 var roleName = worksheet.Cells[row, 3].Text?.Trim();
-                 var screenName = worksheet.Cells[row, 4].Text?.Trim();
-                 var userType = worksheet.Cells[row, 5].Text?.Trim();
-                 var accessLevel = worksheet.Cells[row, 6].Text?.Trim();
-                 var assignCountry = worksheet.Cells[row, 7].Text?.Trim();
-
-                 // Collect missing required fields
-                 if (string.IsNullOrEmpty(userEmail) || string.IsNullOrEmpty(roleName) || string.IsNullOrEmpty(screenName) || string.IsNullOrEmpty(userType))
-                 {
-                     errorMessages.Add($"Row {row}: Required fields (Email, Role, Screen, User Type) are missing.");
-                     continue;
-                 }
-
-                 // Validate RoleAccessMapping table
-                 var roleAccessId = GetRoleAccessMapping(dbDatabase, roleName, screenName, userType);
-                 if (roleAccessId == null)
-                 {
-                     errorMessages.Add($"Row {row}: Role '{roleName}', Screen '{screenName}', or Access '{userType}' combination not found in RoleAccessTable.");
-
-                     continue;
-                     
-                 }
-
-                 // Step 1: Handle User Details
-                 var userId = GetOrCreateUser(dbDatabase, userEmail, out string userName, out string opcoName);
-
-                 // Step 2: Handle User Role Access Mapping
-                 var userRoleAccessMapping = dbDatabase.User_Role_Access_Mapping
-                     .FirstOrDefault(ura => ura.UserId == userId && ura.RoleAccessId == roleAccessId);
-
-                 if (userRoleAccessMapping != null)
-                 {
-                     userRoleAccessMapping.Country = assignCountry;
-                     dbDatabase.SaveChanges();
-                 }
-                 else
-                 {
-                     var newUserRoleAccessMapping = new User_Role_Access_Mapping
-                     {
-                         UserId = userId,
-                         RoleAccessId = (long)roleAccessId,
-                         Country = assignCountry,
-                         CreatedBy = "System", // Replace with actual logged-in user
-                         CreatedDate = DateTime.Now,
-                         UpdatedBy = "System",
-                         UpdatedDate = DateTime.Now
-                     };
-                     dbDatabase.User_Role_Access_Mapping.Add(newUserRoleAccessMapping);
-                     dbDatabase.SaveChanges();
-                 }
-             }
-         }
-     }
-     catch (Exception ex)
-     {
-         errorMessages.Add($"Error processing the file: {ex.Message}");
+         // User exists, return the existing Id
+         return existingUser.Id;
      }
 
-     return errorMessages;
+     // Look up the CountryId from the CountryDetails table based on the countryName
+     var countryDetails = dbDatabase.Country_Details.FirstOrDefault(c => c.Country_Name.Equals(countryName, StringComparison.OrdinalIgnoreCase));
+
+     // If the country is found, use the corresponding CountryId, otherwise, assign a default CountryId (e.g., "IN")
+     string countryId = countryDetails != null ? countryDetails.Country_Id : "IN"; // Default to "IN" if not found
+
+     // If user doesn't exist, create a new user
+     var newUser = new User_Details
+     {
+         User_Id = userId, // User Id from email (e.g., "shubham.k")
+         User_Name = userName, // User Name (e.g., "shubham k")
+         User_Email = email, // Email
+         OpCoName = opcoName, // OpCo Name (e.g., "global.ntt")
+         IsExternal = isExternal ? true : false, // Set IsExternal (1 for external, 0 for internal)
+         Country_Id = countryId, // Default country
+         User_Group = "NA" // Default User Group
+     };
+
+     // Save the new user in the database
+     dbDatabase.User_Details.Add(newUser);
+     dbDatabase.SaveChanges();
+
+     // Return the new user's Id
+     return newUser.Id;
  }
