@@ -1,6 +1,44 @@
-data: new FormData($('#uploadForm')[0]), // Send the form data including the file
-    processData: false,  // Important for file uploads
-    contentType: false,  // Important for file uploads
-    headers: {
-        'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()  // Include anti-forgery token
-    },
+<input type="file" name="file" id="fileUpload" accept=".xlsx,.xls" />
+<button type="button" id="uploadButton">Upload</button>
+
+<script>
+    $(document).ready(function () {
+        $('#uploadButton').click(function (e) {
+            e.preventDefault(); // Prevent default form submission
+
+            var fileInput = $('#fileUpload')[0]; // Get the file input
+            var file = fileInput.files[0]; // Get the selected file
+
+            if (!file) {
+                alert("Please select a file.");
+                return;
+            }
+
+            var formData = new FormData(); // Create a new FormData object
+            formData.append('file', file); // Append the file to FormData
+
+            // Include the anti-forgery token in the request
+            var token = $('input[name="__RequestVerificationToken"]').val();
+            formData.append('__RequestVerificationToken', token);
+
+            $.ajax({
+                url: '@Url.Action("UploadExcel", "UserRoleAccessMapping")', // Replace with your action URL
+                type: 'POST',
+                dataType: 'json',
+                data: formData, // Send the FormData object
+                processData: false, // Important for file uploads
+                contentType: false, // Important for file uploads
+                success: function (data) {
+                    if (data.success) {
+                        alert("File processed successfully.");
+                    } else {
+                        alert("Error processing file: " + data.errorMessages);
+                    }
+                },
+                error: function (xhr, status, error) {
+                    alert("An error occurred while processing your request.");
+                }
+            });
+        });
+    });
+</script>
