@@ -1,1 +1,85 @@
-ajax wil be called when user click-->> AJAX call
+pip install boto3 pandas psycopg2
+
+
+import boto3
+import pandas as pd
+import psycopg2
+from io import StringIO
+
+# AWS S3 credentials and bucket name
+AWS_BUCKET_NAME = 'your-s3-bucket-name'
+AWS_REGION = 'your-region'
+AWS_ACCESS_KEY = 'your-access-key'
+AWS_SECRET_KEY = 'your-secret-key'
+
+# Redshift connection details
+REDSHIFT_HOST = 'your-redshift-cluster-endpoint'
+REDSHIFT_PORT = '5439'  # Default Redshift port
+REDSHIFT_USER = 'your-redshift-username'
+REDSHIFT_PASSWORD = 'your-redshift-password'
+REDSHIFT_DB = 'your-redshift-database'
+
+# S3 client setup
+s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY, region_name=AWS_REGION)
+
+# Function to connect to Redshift
+def connect_redshift():
+    conn = psycopg2.connect(
+        dbname=REDSHIFT_DB,
+        user=REDSHIFT_USER,
+        password=REDSHIFT_PASSWORD,
+        host=REDSHIFT_HOST,
+        port=REDSHIFT_PORT
+    )
+    return conn
+
+# Function to get table names
+def get_table_names():
+    conn = connect_redshift()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT table_name 
+        FROM information_schema.tables
+        WHERE table_schema = 'public' 
+          AND table_type = 'BASE TABLE';
+    """)
+    tables = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return tables
+
+# Function to export table to CSV and upload to S3
+def upload_table_to_s3(table_name):
+    conn = connect_redshift()
+    cursor = conn.cursor()
+
+    # Fetch data from the Redshift table
+    query = f"SELECT * FROM public.{table_name}"
+    cursor.execute(query)
+    columns = [desc[0] for desc in cursor.description]
+    rows = cursor.fetchall()
+
+    # Convert data to a pandas DataFrame
+    df = pd.DataFrame(rows, columns=columns)
+
+    # Create a CSV buffer
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+
+    # Upload CSV to S3
+    s3_client.put_object(Bucket=AWS_BUCKET_NAME, Key=f"redshift_tables/{table_name}.csv", Body=csv_buffer.getvalue())
+    print(f"Uploaded {table_name} to S3")
+
+    cursor.close()
+    conn.close()
+
+# Function to migrate all tables to S3
+def migrate_tables_to_s3():
+    tables = get_table_names()
+    for table in tables:
+        print(f"Exporting table: {table}")
+        upload_table_to_s3(table)
+
+# Execute the migration
+if __name__ == "__main__":
+    migrate_tables_to_s3()
