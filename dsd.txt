@@ -53,49 +53,58 @@ def get_views_in_schema(conn, schema):
         logger.error(f"Error fetching views in schema {schema}: {e}")
         raise
 
-# Fetch data from the Redshift view
-# Fetch data from the Redshift view
-def fetch_data_from_redshift(conn, view_name, schema_name):
+# Fetch the DDL for the Redshift view
+def fetch_view_ddl(conn, view_name, schema_name):
     try:
-        logger.info(f"Fetching data from Redshift view: {view_name} in schema: {schema_name}")
+        logger.info(f"Fetching DDL for view: {view_name} in schema: {schema_name}")
         
-        # Use schema-qualified view names (schema.view_name)
-        query = f"SELECT * FROM {schema_name}.{view_name};"
+        # Query the pg_views system catalog to get the DDL of the view
+        query = f"""
+        SELECT 'CREATE VIEW ' || table_schema || '.' || table_name || ' AS ' || view_definition AS view_ddl
+        FROM information_schema.views
+        WHERE table_schema = '{schema_name}' AND table_name = '{view_name}';
+        """
         
-        # Fetch the data
-        df = pd.read_sql(query, conn)
-        logger.info(f"Successfully fetched {len(df)} rows from the view: {view_name}.")
-        return df
+        # Fetch the DDL
+        ddl_df = pd.read_sql(query, conn)
+        
+        if ddl_df.empty:
+            logger.warning(f"No DDL found for view: {view_name}")
+            return None
+        
+        view_ddl = ddl_df['view_ddl'].iloc[0]
+        logger.info(f"Successfully fetched DDL for view: {view_name}.")
+        return view_ddl
     except Exception as e:
-        logger.error(f"Error while fetching data from the view {view_name}: {e}")
+        logger.error(f"Error while fetching DDL for view {view_name}: {e}")
         raise
 
-
-# Upload CSV to S3
-def upload_to_s3(df, view_name):
+# Upload the DDL to S3
+def upload_to_s3(ddl, view_name):
     try:
-        logger.info(f"Converting DataFrame to CSV format for view: {view_name}.")
-        # Convert DataFrame to CSV
+        logger.info(f"Converting DDL to CSV format for view: {view_name}.")
+        # Convert DDL to CSV format
         csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
+        csv_writer = csv.writer(csv_buffer)
+        csv_writer.writerow([view_name, ddl])  # Write view name and its DDL
         
         # Generate the filename with 'V_' prefix
-        filename = f"V_{view_name}.csv"
+        filename = f"V_{view_name}_DDL.csv"
         
         # Upload to S3 using boto3
         s3_key = f"{S3_PATH}{filename}"
-        logger.info(f"Uploading CSV to S3 bucket: {S3_BUCKET}, path: {s3_key}")
+        logger.info(f"Uploading DDL CSV to S3 bucket: {S3_BUCKET}, path: {s3_key}")
         s3 = boto3.client('s3')
         s3.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=csv_buffer.getvalue())
         
         logger.info(f"File successfully uploaded to S3: s3://{S3_BUCKET}/{s3_key}")
     except Exception as e:
-        logger.error(f"Error uploading CSV for view {view_name} to S3: {e}")
+        logger.error(f"Error uploading DDL CSV for view {view_name} to S3: {e}")
         raise
 
 def main():
     try:
-        logger.info("Starting the process of fetching data from Redshift views and uploading to S3.")
+        logger.info("Starting the process of fetching DDL from Redshift views and uploading to S3.")
         
         # Get Redshift connection
         conn = get_redshift_connection()
@@ -103,17 +112,18 @@ def main():
         # Get list of all views in the schema
         views = get_views_in_schema(conn, REDSHIFT_SCHEMA)
         
-        
-            # Loop through all views and process each one
+        # Loop through all views and process each one
         for view in views:
-             logger.info(f"Processing view: {view}")
-    
-    # Fetch data from the Redshift view (passing the schema name)
-             df = fetch_data_from_redshift(conn, view, REDSHIFT_SCHEMA)
-    
-    # Upload the data to S3
-             upload_to_s3(df, view)
- 
+            logger.info(f"Processing view: {view}")
+            
+            # Fetch DDL for the Redshift view
+            ddl = fetch_view_ddl(conn, view, REDSHIFT_SCHEMA)
+            
+            if ddl:
+                # Upload the DDL to S3
+                upload_to_s3(ddl, view)
+            else:
+                logger.warning(f"Skipping view {view} as no DDL was found.")
     
     except Exception as e:
         logger.error(f"Script failed due to: {e}")
