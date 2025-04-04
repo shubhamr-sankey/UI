@@ -1,5 +1,4 @@
-2025-04-04 15:14:03,977 - ERROR - Script failed due to: Execution failed on sql '
-        SELECT tablename
-        FROM pg_views
-        WHERE schemaname = 'orbit_64407564mmy3009';
-        ': {'S': 'ERROR', 'C': '42703', 'M': 'column "tablename" does not exist in pg_views', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.9616.0/AL2_x86_64/generic-flavor/src/src/pg/src/backend/parser/parse_expr.c', 'L': '2000', 'R': 'transformColumnRef'}
+2025-04-04 15:16:57,809 - INFO - Successfully fetched DDL for view: vendor.
+2025-04-04 15:17:06,586 - INFO - Converting DDL to CSV format for view: vendor.
+2025-04-04 15:17:14,586 - INFO - Uploading DDL CSV to S3 bucket: itx-bhq-orbit-datastore-dev, path: snowflake-POC/V_vendor_DDL.csv
+2025-04-04 15:18:10,012 - ERROR - Error uploading DDL CSV for view vendor to S3: Unable to locate credentials
