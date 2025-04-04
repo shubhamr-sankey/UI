@@ -1,2 +1,4 @@
 d) when calling the PutObject operation: User: arn:aws:iam::335065578196:user/project/api/kdube1-api is not authorized to perform: s3:PutObject on resource: "arn:aws:s3:::itx-bhq-orbit-datastore-dev/snowflake-POCV_vendor_DDL.csv" because no identity-based policy allows the s3:PutObject action
 2025-04-04 15:29:10,453 - ERROR - Script failed due to: An error occurred (AccessDenied) when calling the PutObject operation: User: arn:aws:iam::335065578196:user/project/api/kdube1-api is not authorized to perform: s3:PutObject on resource: "arn:aws:s3:::itx-bhq-orbit-datastore-dev/snowflake-POCV_vendor_DDL.csv" because no identity-based policy allows the s3:PutObject action
+
+s3://itx-bhq-orbit-datastore-dev/snowflake_poc/
