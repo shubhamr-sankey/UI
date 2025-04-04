@@ -1,118 +1,134 @@
-import psycopg2
-import logging
+import redshift_connector
+import pandas as pd
 import boto3
 import io
+import logging
+import csv
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(), logging.FileHandler('migration.log')]
-)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
 
-# AWS S3 credentials and bucket name
-AWS_BUCKET_NAME = '-'
-AWS_REGION = 'us-east-1'
-AWS_ACCESS_KEY = '#'
-AWS_SECRET_KEY = '-'
+# AWS S3 bucket details
+S3_BUCKET = '#'
+S3_PATH = '#'  # The location in the bucket (without filename)
 
-# Redshift connection details
-REDSHIFT_HOST = '-'
+REDSHIFT_HOST = 'm--com'
 REDSHIFT_PORT = '5439'  # Default Redshift port
-REDSHIFT_USER = '-'
+REDSHIFT_USER = 'o--y'
 REDSHIFT_PASSWORD = '-'
-REDSHIFT_DB = 'orbit'
+REDSHIFT_DBNAME = 'orbit'
 
-# S3 client setup
-s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY, region_name=AWS_REGION)
-
-# Function to connect to Redshift
-def connect_redshift():
+# Create Redshift connection
+def get_redshift_connection():
     try:
-        conn = psycopg2.connect(
-            dbname=REDSHIFT_DB,
-            user=REDSHIFT_USER,
-            password=REDSHIFT_PASSWORD,
+        logger.info("Attempting to connect to Redshift...")
+        conn = redshift_connector.connect(
             host=REDSHIFT_HOST,
-            port=REDSHIFT_PORT
+            port=REDSHIFT_PORT,
+            database=REDSHIFT_DBNAME,
+            user=REDSHIFT_USER,
+            password=REDSHIFT_PASSWORD
         )
-        logging.info("Successfully connected to Redshift.")
+        logger.info("Successfully connected to Redshift.")
         return conn
     except Exception as e:
-        logging.error(f"Error connecting to Redshift: {e}")
+        logger.error(f"Failed to connect to Redshift: {e}")
         raise
 
-# Function to get view names (only views, not tables)
-def get_view_names():
+# Get a list of all views in the specified schema
+def get_views_in_schema(conn, schema):
     try:
-        conn = connect_redshift()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.views 
-            WHERE table_schema = 'orbit_64407564mmy3009';
-        """)
-        views = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logging.info(f"Retrieved view names: {views}")
+        logger.info(f"Fetching all views in schema: {schema}")
+        query = f"""
+        SELECT table_name 
+        FROM information_schema.views 
+        WHERE table_schema = '{schema}';
+        """
+        views_df = pd.read_sql(query, conn)
+        views = views_df['table_name'].tolist()
+        logger.info(f"Found {len(views)} views in schema '{schema}'.")
         return views
     except Exception as e:
-        logging.error(f"Error fetching view names: {e}")
+        logger.error(f"Error fetching views in schema {schema}: {e}")
         raise
 
-# Function to get the full DDL (CREATE VIEW) of a view
-def get_view_ddl(view_name):
+# Fetch the DDL for the Redshift view using pg_catalog.pg_get_viewdef
+def fetch_view_ddl(conn, view_name, schema_name):
     try:
-        conn = connect_redshift()
-        cursor = conn.cursor()
-        cursor.execute(f"""
-            SELECT pg_catalog.pg_get_viewdef('{view_name}', true);
-        """)
-        ddl = cursor.fetchone()[0]  # Fetch the full CREATE VIEW DDL
-        cursor.close()
-        conn.close()
-        logging.info(f"Retrieved full DDL for view {view_name}.")
-        return ddl
-    except Exception as e:
-        logging.error(f"Error retrieving DDL for view {view_name}: {e}")
-        raise
-
-# Function to migrate view DDL to S3
-def migrate_view_ddl_to_s3(view_name):
-    try:
-        ddl = get_view_ddl(view_name)
+        logger.info(f"Fetching DDL for view: {view_name} in schema: {schema_name}")
         
-        # Upload the full DDL to S3 as a text file
-        s3_key = f"snowflake_poc/{view_name}.sql"
-        s3_client.put_object(Bucket=AWS_BUCKET_NAME, Key=s3_key, Body=ddl)
-        logging.info(f"Uploaded full DDL for view {view_name} to S3.")
-    
+        # Query pg_catalog.pg_get_viewdef to get the DDL
+        query = f"""
+        SELECT 'CREATE VIEW ' || '{schema_name}' || '.' || '{view_name}' || ' AS ' || pg_catalog.pg_get_viewdef('{schema_name}' || '.' || '{view_name}', true) AS view_ddl;
+        """
+        
+        # Fetch the DDL
+        ddl_df = pd.read_sql(query, conn)
+        
+        if ddl_df.empty:
+            logger.warning(f"No DDL found for view: {view_name}")
+            return None
+        
+        view_ddl = ddl_df['view_ddl'].iloc[0]
+        logger.info(f"Successfully fetched DDL for view: {view_name}.")
+        return view_ddl
     except Exception as e:
-        logging.error(f"Error migrating DDL for view {view_name}: {e}")
+        logger.error(f"Error while fetching DDL for view {view_name}: {e}")
         raise
 
-# Function to migrate DDL for all views
-def migrate_ddl_to_s3():
+# Upload the DDL to S3
+def upload_to_s3(ddl, view_name):
     try:
-        # Migrate views and their full DDL
-        views = get_view_names()
+        logger.info(f"Converting DDL to CSV format for view: {view_name}.")
+        # Convert DDL to CSV format
+        csv_buffer = io.StringIO()
+        csv_writer = csv.writer(csv_buffer)
+        csv_writer.writerow([view_name, ddl])  # Write view name and its DDL
+        
+        # Generate the filename with 'V_' prefix
+        filename = f"V_{view_name}_DDL.csv"
+        
+        # Upload to S3 using boto3
+        s3_key = f"{S3_PATH}{filename}"
+        logger.info(f"Uploading DDL CSV to S3 bucket: {S3_BUCKET}, path: {s3_key}")
+        s3 = boto3.client('s3')
+        s3.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=csv_buffer.getvalue())
+        
+        logger.info(f"File successfully uploaded to S3: s3://{S3_BUCKET}/{s3_key}")
+    except Exception as e:
+        logger.error(f"Error uploading DDL CSV for view {view_name} to S3: {e}")
+        raise
+
+def main():
+    try:
+        logger.info("Starting the process of fetching DDL from Redshift views and uploading to S3.")
+        
+        # Get Redshift connection
+        conn = get_redshift_connection()
+        
+        # Get list of all views in the schema
+        views = get_views_in_schema(conn, REDSHIFT_SCHEMA)
+        
+        # Loop through all views and process each one
         for view in views:
-            logging.info(f"Starting export for view DDL: {view}")
+            logger.info(f"Processing view: {view}")
             
-            # Migrate full DDL for the view
-            migrate_view_ddl_to_s3(view)
-            logging.info(f"Successfully exported DDL for view: {view}")
+            # Fetch DDL for the Redshift view
+            ddl = fetch_view_ddl(conn, view, REDSHIFT_SCHEMA)
+            
+            if ddl:
+                # Upload the DDL to S3
+                upload_to_s3(ddl, view)
+            else:
+                logger.warning(f"Skipping view {view} as no DDL was found.")
     
     except Exception as e:
-        logging.error(f"Migration failed: {e}")
-        raise
+        logger.error(f"Script failed due to: {e}")
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+            logger.info("Redshift connection closed.")
 
-# Execute the migration
-if __name__ == "__main__":
-    logging.info("Migration process started.")
-    try:
-        migrate_ddl_to_s3()
-        logging.info("All view DDL migrated successfully.")
-    except Exception as e:
-        logging.error(f"Migration process failed: {e}")
+if __name__ == '__main__':
+    main()
