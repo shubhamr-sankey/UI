@@ -1,1 +1,5 @@
-
+views_df = pd.read_sql(query, conn)
+2025-04-04 13:00:29,605 - INFO - Found 27 views in schema 'orbit_64407564mmy3009'.
+-cache/packages/RedshiftPADB/RedshiftPADB-1.0.9616.0/AL2_x86_64/generic-flavor/src/src/pg/src/backend/catalog/namespace.c', 'L': '259', 'R': 'LocalRangeVarGetRelid'}
+2025-04-04 13:01:49,799 - ERROR - Script failed due to: Execution failed on sql 'SELECT * FROM vendor;': {'S': 'ERROR', 'C': '42P01', 'M': 'relation "vendor" does not exist', 'F': '/opt/brazil-pkg-cache/packages/RedshiftPADB/RedshiftPADB-1.0.9616.0/AL2_x86_64/generic-flavor/src/src/pg/src/backend/catalog/namespace.c', 'L': '259', 'R': 'LocalRangeVarGetRelid'}
+2025-04-04 13:01:53,421 - INFO - Redshift connection closed.PS C:\Users\KDube1\OneDrive - JNJ\Desktop\POC-Snow>
