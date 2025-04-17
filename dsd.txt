@@ -1,4 +1,12 @@
-d) when calling the PutObject operation: User: arn:aws:iam::335065578196:user/project/api/kdube1-api is not authorized to perform: s3:PutObject on resource: "arn:aws:s3:::itx-bhq-orbit-datastore-dev/snowflake-POCV_vendor_DDL.csv" because no identity-based policy allows the s3:PutObject action
-2025-04-04 15:29:10,453 - ERROR - Script failed due to: An error occurred (AccessDenied) when calling the PutObject operation: User: arn:aws:iam::335065578196:user/project/api/kdube1-api is not authorized to perform: s3:PutObject on resource: "arn:aws:s3:::itx-bhq-orbit-datastore-dev/snowflake-POCV_vendor_DDL.csv" because no identity-based policy allows the s3:PutObject action
+Below is a summary of the steps involved and the current status:
+1.	Kaushal to raise an access request to the IAM AD group "Its_app_dev_rddw_orbit_developers" – Done
+2.	Chris to create a role in AWS with S3 read access – Done
+3.	Kaushal to provide the ARN of the role and S3 bucket URL to the RDDW team – Done
+4.	Kaushal to raise a service request for integration setup – The document URL provided for this step is not accessible to me, and I’m currently stuck here
+5.	RDDW team to create the integration and share the details – Pending
+6.	VPC team to update trust relationship – Pending
+Now, Steps 5 and 6 are pending:
 
-s3://itx-bhq-orbit-datastore-dev/snowflake_poc/
+Step 5: RDDW team to create the integration and share the details
+
+Step 6: VPC team to update the trust relationship
