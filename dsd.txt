@@ -1,1 +1,4 @@
-ImportError: cannot import name 'Encoding' from 'cryptography.hazmat.primitives.serialization' (C:\Users\KDube1\AppData\Local\Programs\Python\Python313\Lib\site-packages\cryptography\hazmat\primitives\serialization\__init__.py)
+Exception has occurred: OperationalError
+250001: Could not connect to Snowflake backend after 7 attempt(s).Aborting
+Verify that the hostnames and port numbers in SYSTEM$ALLOWLIST are added to your firewall's allowed list.
+To further troubleshoot your connection you may reference the following article: 
