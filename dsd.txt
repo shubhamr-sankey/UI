@@ -1,12 +1,1 @@
-Below is a summary of the steps involved and the current status:
-1.	Kaushal to raise an access request to the IAM AD group "Its_app_dev_rddw_orbit_developers" – Done
-2.	Chris to create a role in AWS with S3 read access – Done
-3.	Kaushal to provide the ARN of the role and S3 bucket URL to the RDDW team – Done
-4.	Kaushal to raise a service request for integration setup – The document URL provided for this step is not accessible to me, and I’m currently stuck here
-5.	RDDW team to create the integration and share the details – Pending
-6.	VPC team to update trust relationship – Pending
-Now, Steps 5 and 6 are pending:
-
-Step 5: RDDW team to create the integration and share the details
-
-Step 6: VPC team to update the trust relationship
+private key and passphrase for the service account SA-JRDUS-ORBIT-ENG-D
