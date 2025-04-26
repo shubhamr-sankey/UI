@@ -1,4 +1,2 @@
-Exception has occurred: OperationalError
-250001: Could not connect to Snowflake backend after 7 attempt(s).Aborting
-Verify that the hostnames and port numbers in SYSTEM$ALLOWLIST are added to your firewall's allowed list.
-To further troubleshoot your connection you may reference the following article: 
+ Error creating table codes_of_interest: 090105 (22000): Cannot perform CREATE TABLE. This session does not have a current database. Call 'USE DATABASE', or use a qualified name.
+urrent database. Call 'USE DATABASE', or use a qualified name.
