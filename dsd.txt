@@ -1,1 +1,3 @@
-=
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.vendor
+AS SELECT vendor.vendor_id, vendor.vendor_name, vendor.run_id
+   FROM orbit.vendor;
