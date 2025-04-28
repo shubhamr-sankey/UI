@@ -1,1 +1,53 @@
-qwee
+import snowflake.connector
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
+# Snowflake connection config
+sf_user = '##US-ORBIT-ENG-D'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+
+PRIVATE_KEY_PATH = 'sa-jrdus-orbit-eng-d_rsa_key.p8'
+PRIVATE_KEY_PASSPHRASE = b'0rB1THkjSu9'
+
+# Load private key
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+# Connect to Snowflake
+def connect_to_snowflake():
+    private_key = get_private_key()
+    return snowflake.connector.connect(
+        user=sf_user,
+        account=sf_account,
+        private_key=private_key,
+        warehouse=sf_warehouse
+    )
+
+# Create database
+def create_database(database_name):
+    conn = connect_to_snowflake()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(f'CREATE DATABASE IF NOT EXISTS {database_name}')
+        print(f"✅ Database '{database_name}' created (or already exists).")
+    except Exception as e:
+        print(f"❌ Error creating database '{database_name}': {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+# Run
+if __name__ == "__main__":
+    create_database("CEBRA")
