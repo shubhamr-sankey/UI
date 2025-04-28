@@ -1,1 +1,148 @@
-0
+#step 2 only data migrate without schema with columns
+import psycopg2
+import snowflake.connector
+import logging
+
+# Redshift connection configuration
+REDSHIFT_HOST = 'default-workgroup.438465134739.us-east-1.redshift-serverless.amazonaws.com'
+REDSHIFT_PORT = '5439'  # Default Redshift port
+REDSHIFT_USER = 'admin'
+REDSHIFT_PASSWORD = 'YWZLQfydws594(!'
+REDSHIFT_DB = 'dev'
+
+# Snowflake connection configuration
+sf_user = 'ROHITJADHAV'
+sf_password = 'SankeySnowflake1234'
+sf_account = 'RFCNZSY-QF62974'
+sf_warehouse = 'COMPUTE_WH'
+sf_database = 'POC'
+sf_schema = 'TRYPOC'
+
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO,  # You can change to DEBUG for more detailed logs
+    filename='migration.log',  # Log to a file named 'migration.log'
+    filemode='w'  # 'w' mode will overwrite the log file each time the script runs
+)
+
+# Function to connect to Redshift
+def connect_to_redshift():
+    try:
+        connection = psycopg2.connect(
+            dbname=REDSHIFT_DB,
+            user=REDSHIFT_USER,
+            password=REDSHIFT_PASSWORD,
+            host=REDSHIFT_HOST,
+            port=REDSHIFT_PORT
+        )
+        logging.info("Connected to Redshift successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Redshift: {e}")
+        raise
+
+
+# Function to connect to Snowflake
+def connect_to_snowflake():
+    try:
+        connection = snowflake.connector.connect(
+            user=sf_user,
+            password=sf_password,
+            account=sf_account,
+            warehouse=sf_warehouse,
+            database=sf_database,
+            schema=sf_schema
+        )
+        logging.info("Connected to Snowflake successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Snowflake: {e}")
+        raise
+
+
+# Function to fetch the data from Redshift for a specific table
+def fetch_redshift_data(table_name):
+    try:
+        connection = connect_to_redshift()
+        cursor = connection.cursor()
+
+        query = f"SELECT * FROM public.{table_name}"
+        cursor.execute(query)
+
+        # Fetch all rows as a list of tuples and column names
+        column_names = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+
+        connection.close()
+        logging.info(f"Fetched data from Redshift table: {table_name}")
+        return column_names, rows
+    except Exception as e:
+        logging.error(f"Error fetching data from Redshift table {table_name}: {e}")
+        raise
+
+
+# Function to insert data into Snowflake
+def insert_data_into_snowflake(table_name, column_names, rows):
+    try:
+        connection = connect_to_snowflake()
+        cursor = connection.cursor()
+
+        # Prepare the insert statement for Snowflake
+        column_names_str = ', '.join(column_names)
+        values_placeholder = ', '.join(['%s'] * len(column_names))
+
+        insert_query = f"INSERT INTO {sf_schema}.{table_name} ({column_names_str}) VALUES ({values_placeholder})"
+
+        # Execute the insert statement in batches
+        cursor.executemany(insert_query, rows)
+        connection.commit()
+        connection.close()
+
+        logging.info(f"Data inserted into Snowflake table: {table_name}")
+    except Exception as e:
+        logging.error(f"Error inserting data into Snowflake table {table_name}: {e}")
+        raise
+
+
+# Function to migrate data from Redshift to Snowflake
+def migrate_data_to_snowflake():
+    try:
+        # Fetch the list of tables in the public schema of Redshift
+        connection = connect_to_redshift()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        """)
+
+        # Fetch the list of table names
+        tables = [row[0] for row in cursor.fetchall()]
+
+        connection.close()
+
+        # Migrate data for each table
+        for table_name in tables:
+            logging.info(f"Starting migration for table: {table_name}")
+
+            # Fetch data from Redshift
+            column_names, rows = fetch_redshift_data(table_name)
+
+            # Insert data into Snowflake
+            insert_data_into_snowflake(table_name, column_names, rows)
+        
+        logging.info("Data migration from Redshift to Snowflake completed successfully.")
+    except Exception as e:
+        logging.error(f"Error during data migration: {e}")
+        raise
+
+
+# Main execution
+if __name__ == "__main__":
+    try:
+        migrate_data_to_snowflake()
+    except Exception as e:
+        logging.critical(f"Critical error during migration: {e}")
