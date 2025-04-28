@@ -1,23 +1,32 @@
-#step 2 only data migrate without schema with columns
 import psycopg2
 import snowflake.connector
 import logging
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 
+# -------------------------------------------
 # Redshift connection configuration
-REDSHIFT_HOST = 'default-workgroup.438465134739.us-east-1.redshift-serverless.amazonaws.com'
+# -------------------------------------------
+REDSHIFT_HOST = 'medai-orbit.cqibeghf1hd5.us-east-1.redshift.amazonaws.com'
 REDSHIFT_PORT = '5439'  # Default Redshift port
-REDSHIFT_USER = 'admin'
-REDSHIFT_PASSWORD = 'YWZLQfydws594(!'
-REDSHIFT_DB = 'dev'
+REDSHIFT_USER = 'orbit_sa_read_only'
+REDSHIFT_PASSWORD = '419iKpjj-zPX'
+REDSHIFT_DB = 'orbit'
 
+# -------------------------------------------
 # Snowflake connection configuration
-sf_user = 'ROHITJADHAV'
-sf_password = 'SankeySnowflake1234'
-sf_account = 'RFCNZSY-QF62974'
-sf_warehouse = 'COMPUTE_WH'
-sf_database = 'POC'
-sf_schema = 'TRYPOC'
+# -------------------------------------------
+sf_user = 'SA-JRDUS-ORBIT-ENG-D'
+# sf_user = 'KDUBE1'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+sf_database = 'ORBIT_DEV'
+sf_schema = 'CERBA'
+sf_role = 'ITS_APP_DEV_RDDW_ORBIT_DEVELOPERS'
 
+# Path to your private key (.p8 or .pem)
+PRIVATE_KEY_PATH = 'sa-jrdus-orbit-eng-d_rsa_key.p8'  # 🔁 UPDATE THIS
+PRIVATE_KEY_PASSPHRASE = b'0rB1THkjSu9'   # Replace with the passphrase, or None if not required
 
 # Set up logging
 logging.basicConfig(
@@ -27,7 +36,27 @@ logging.basicConfig(
     filemode='w'  # 'w' mode will overwrite the log file each time the script runs
 )
 
+
+# -------------------------------------------
+# Load private key for Snowflake
+# -------------------------------------------
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+
+# -------------------------------------------
 # Function to connect to Redshift
+# -------------------------------------------
 def connect_to_redshift():
     try:
         connection = psycopg2.connect(
@@ -44,16 +73,21 @@ def connect_to_redshift():
         raise
 
 
-# Function to connect to Snowflake
+# -------------------------------------------
+# Function to connect to Snowflake with role and private key
+# -------------------------------------------
 def connect_to_snowflake():
     try:
+        private_key = get_private_key()
+
         connection = snowflake.connector.connect(
             user=sf_user,
-            password=sf_password,
             account=sf_account,
+            private_key=private_key,
             warehouse=sf_warehouse,
             database=sf_database,
-            schema=sf_schema
+            schema=sf_schema,
+            role=sf_role  # Include role
         )
         logging.info("Connected to Snowflake successfully.")
         return connection
@@ -62,13 +96,15 @@ def connect_to_snowflake():
         raise
 
 
+# -------------------------------------------
 # Function to fetch the data from Redshift for a specific table
+# -------------------------------------------
 def fetch_redshift_data(table_name):
     try:
         connection = connect_to_redshift()
         cursor = connection.cursor()
 
-        query = f"SELECT * FROM public.{table_name}"
+        query = f"SELECT * FROM orbit_64407564mmy3009.{table_name}"
         cursor.execute(query)
 
         # Fetch all rows as a list of tuples and column names
@@ -83,7 +119,9 @@ def fetch_redshift_data(table_name):
         raise
 
 
+# -------------------------------------------
 # Function to insert data into Snowflake
+# -------------------------------------------
 def insert_data_into_snowflake(table_name, column_names, rows):
     try:
         connection = connect_to_snowflake()
@@ -106,7 +144,9 @@ def insert_data_into_snowflake(table_name, column_names, rows):
         raise
 
 
+# -------------------------------------------
 # Function to migrate data from Redshift to Snowflake
+# -------------------------------------------
 def migrate_data_to_snowflake():
     try:
         # Fetch the list of tables in the public schema of Redshift
@@ -116,7 +156,7 @@ def migrate_data_to_snowflake():
         cursor.execute("""
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            WHERE table_schema = 'orbit_64407564mmy3009' AND table_type = 'BASE TABLE'
         """)
 
         # Fetch the list of table names
