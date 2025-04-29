@@ -1,60 +1,27 @@
--- orbit_64407564mmy3009.mrd_tracking_vw source
+-- orbit_64407564mmy3009.q2_flow_cytometry_vw source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.mrd_tracking_vw
-AS SELECT DISTINCT ss.study_id, ss.site_id, ss.study_subject_status, ss.study_arm, COALESCE(s.subject_id, ss.subject_id) AS subject_id, os.site_country_name, s.specimen_id, t1.accession_number, s.visit_id, s.visit_id_cut, s.specimen_collection_date, t1.specimen_class, s.specimen_type, s.vendor_specimen_type, "replace"(ci."clone id status", 'NO ID CLONE'::text, 'NO CLONE IDENTIFIED'::text) AS "clone id status", ci.basline_flag AS "baseline sample", mrd.test_result_orig_value_string AS "mrd status", mrd.test_result_orig_unit AS "mrd threshold", rave.test_result_orig_value AS rave_plasma_cell_percent, rave.rave_specimen_test_id, rave.rave_specimen_id, dna.test_result_orig_value AS dna_input
-   FROM ( SELECT study_subject.study_id, study_subject.subject_id, study_subject.site_id, study_subject.study_arm, study_subject.study_subject_status
-           FROM orbit_64407564mmy3009.study_subject) ss
-   LEFT JOIN ( SELECT sa.specimen_id, sa.accession_number, sa.specimen_collection_date, s.specimen_class, s.specimen_type, s.vendor_specimen_type, s.visit_id, vis.visit_name, s.subject_id, split_part(s.visit_id::text, '|'::text, 2) AS visit_id_cut
-           FROM ( SELECT specimen.specimen_id, specimen.accession_number, specimen.study_subject, specimen.study_id, specimen.subject_id, specimen.pre_screening_id, specimen.visit_id, specimen.vendor_id, specimen.specimen_class, specimen.specimen_type, specimen.storage_location, specimen.storage_state, specimen.storage_temperature, specimen.vendor_specimen_id, specimen.vendor_subject_id, specimen.vendor_study_id, specimen.site_specimen_id, specimen.specimen_condition, specimen.specimen_extract_location, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.vendor_specimen_type, specimen.specimen_status, specimen.specimen_accession_date, specimen.specimen_reporting_date, specimen.repeat_status, specimen.repeat_times, specimen.number_of_slides, specimen.number_of_slides_needed, specimen.reason_qualified_or_failed, specimen.sample_pass_fail_status, specimen.run_id, specimen.composite_primary_key, specimen.row_id, "substring"(specimen.subject_id::text, 4) AS trimmed_subject_id
-                   FROM orbit_64407564mmy3009.specimen
-                  WHERE specimen.vendor_id = 29) sa
-      LEFT JOIN orbit.specimen s ON s.specimen_id::text = sa.specimen_id::text AND s.study_id::text = sa.study_id::text
-   LEFT JOIN orbit_64407564mmy3009.visit vis ON vis.subject_id::text = sa.trimmed_subject_id AND vis.visit_date_actl::text = "left"(s.specimen_collection_date::text, 10)
-  WHERE s.specimen_class::text ~~ '%MRD%'::text OR s.specimen_class::text ~~ '%ARCHIVAL%'::text) s ON ss.subject_id::text = s.subject_id::text
-   LEFT JOIN ( SELECT s.accession_number, st.specimen_id, 
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.q2_flow_cytometry_vw
+AS SELECT DISTINCT ss.study_id, ss.subject_id, ss.site_id, "left"(split_part(ss.site_id::text, '-'::text, 2), 2) AS country_code, ss.date_screening, ss.date_enrollment, ss.cohort, ss.study_arm, ss.study_subject_status, am."domain", am.vendor_id, "right"(am.subject_id::text, 6) AS subject_id_q2, am.specimen_id, am.vendor_specimen_id, s.accession_number, s.visit_id, v.report_value AS critical_visit, am.analyte_panel, ap."assay panel", am.status, 
+        CASE
+            WHEN am."domain"::text = 'LB'::text AND am.status IS NULL THEN 'D'::character varying
+            WHEN am."domain"::text = 'LB'::text AND am.status::text = 'NOT DONE'::text THEN 'X'::character varying
+            WHEN am."domain"::text = 'vendor_file'::text THEN am.status
+            ELSE NULL::character varying
+        END AS test_status, am.measurement_name, am.measurement_value, am.measurement_value_unit, am."comment", am.original_source_reportable, am.original_source_reportable_code
+   FROM orbit_64407564mmy3009.study_subject ss
+   LEFT JOIN orbit_64407564mmy3009.analyte_measurement am ON am.subject_id::text = ss.subject_id::text
+   LEFT JOIN ( SELECT DISTINCT am.analyte_panel, "left"(am.analyte_panel::text, 4) AS assay_panel_num, 
            CASE
-               WHEN st.test_status IS NULL OR st.test_status::text = '|'::text THEN 'Complete'::text
-               ELSE "replace"(st.test_status::text, 'NOT DONE|'::text, ''::text)
-           END AS "clone id status", st.basline_flag
-      FROM ( SELECT specimen_test.specimen_test_id, specimen_test.specimen_id, specimen_test.study_id, specimen_test.vendor_id, specimen_test.vendor_specimen_id, specimen_test.test_code, specimen_test.test_name, specimen_test.test_category, specimen_test.test_result_orig_value, specimen_test.test_result_orig_value_string, specimen_test.test_result_orig_value_numeric, specimen_test.test_result_orig_value_datetime, specimen_test.test_result_orig_value_cancelled, specimen_test.test_result_orig_unit, specimen_test.test_result_std_value, specimen_test.test_result_std_unit, specimen_test.test_status, specimen_test.basline_flag, specimen_test.test_start_date_time, specimen_test.test_end_date_time, specimen_test.test_category_code, specimen_test.test_result_date, specimen_test.test_filed_date, specimen_test.test_review_date, specimen_test.reason_test_qualified_or_failed, specimen_test."comment", specimen_test.labcorp_sequence_num, specimen_test.run_id, specimen_test.composite_primary_key, specimen_test.row_id
-              FROM orbit_64407564mmy3009.specimen_test
-             WHERE specimen_test.vendor_id = 29) st
-   LEFT JOIN orbit_64407564mmy3009.specimen s ON st.specimen_id::text = s.specimen_id::text
-  WHERE st.test_name::text = 'Clone Frequency'::text) ci ON s.specimen_id::text = ci.specimen_id::text
-   LEFT JOIN ( SELECT s.accession_number, st.test_result_orig_value_string, st.test_result_orig_unit
-   FROM ( SELECT specimen_test.specimen_test_id, specimen_test.specimen_id, specimen_test.study_id, specimen_test.vendor_id, specimen_test.vendor_specimen_id, specimen_test.test_code, specimen_test.test_name, specimen_test.test_category, specimen_test.test_result_orig_value, specimen_test.test_result_orig_value_string, specimen_test.test_result_orig_value_numeric, specimen_test.test_result_orig_value_datetime, specimen_test.test_result_orig_value_cancelled, specimen_test.test_result_orig_unit, specimen_test.test_result_std_value, specimen_test.test_result_std_unit, specimen_test.test_status, specimen_test.basline_flag, specimen_test.test_start_date_time, specimen_test.test_end_date_time, specimen_test.test_category_code, specimen_test.test_result_date, specimen_test.test_filed_date, specimen_test.test_review_date, specimen_test.reason_test_qualified_or_failed, specimen_test."comment", specimen_test.labcorp_sequence_num, specimen_test.run_id, specimen_test.composite_primary_key, specimen_test.row_id
-           FROM orbit_64407564mmy3009.specimen_test
-          WHERE specimen_test.vendor_id = 29) st
-   LEFT JOIN orbit_64407564mmy3009.specimen s ON st.specimen_id::text = s.specimen_id::text) mrd ON s.accession_number::text = mrd.accession_number::text
-   LEFT JOIN ( SELECT s.accession_number, s.concat_id, pc.test_result_orig_value, pc.rave_specimen_test_id, pc.rave_specimen_id
-   FROM ( SELECT split_part(derived_table44.specimen_id::text, '|'::text, 2) AS subject_id, split_part(derived_table44.specimen_id::text, '|'::text, 4) AS visit, split_part(derived_table44.specimen_id::text, '|'::text, 5) AS specimen_type, 
-                CASE
-                    WHEN split_part(derived_table44.specimen_id::text, '|'::text, 4) = 'Screening'::text OR split_part(derived_table44.specimen_id::text, '|'::text, 4) = 'Baseline Disease Evaluation'::text THEN concat(derived_table44.study_id::text, concat('|'::text, concat(split_part(derived_table44.specimen_id::text, '|'::text, 2), concat('|'::text, concat('SCREENING'::text, concat('|'::text, upper(split_part(derived_table44.specimen_id::text, '|'::text, 5))))))))
-                    ELSE concat(derived_table44.study_id::text, concat('|'::text, concat(split_part(derived_table44.specimen_id::text, '|'::text, 2), concat('|'::text, concat(split_part(derived_table44.specimen_id::text, '|'::text, 4), concat('|'::text, upper(split_part(derived_table44.specimen_id::text, '|'::text, 5))))))))
-                END AS concat_id, derived_table44.test_result_orig_value, derived_table44.specimen_test_id AS rave_specimen_test_id, derived_table44.specimen_id AS rave_specimen_id
-           FROM ( SELECT specimen_test.specimen_test_id, specimen_test.specimen_id, specimen_test.study_id, specimen_test.vendor_id, specimen_test.vendor_specimen_id, specimen_test.test_code, specimen_test.test_name, specimen_test.test_category, specimen_test.test_result_orig_value, specimen_test.test_result_orig_value_string, specimen_test.test_result_orig_value_numeric, specimen_test.test_result_orig_value_datetime, specimen_test.test_result_orig_value_cancelled, specimen_test.test_result_orig_unit, specimen_test.test_result_std_value, specimen_test.test_result_std_unit, specimen_test.test_status, specimen_test.basline_flag, specimen_test.test_start_date_time, specimen_test.test_end_date_time, specimen_test.test_category_code, specimen_test.test_result_date, specimen_test.test_filed_date, specimen_test.test_review_date, specimen_test.reason_test_qualified_or_failed, specimen_test."comment", specimen_test.labcorp_sequence_num, specimen_test.run_id, specimen_test.composite_primary_key, specimen_test.row_id
-                   FROM orbit_64407564mmy3009.specimen_test
-                  WHERE specimen_test.vendor_id = 6 AND specimen_test.test_name::text = 'Plasma Cells'::text) derived_table44) pc
-   JOIN ( SELECT sa.accession_number, 
-                CASE
-                    WHEN sa.visit_id::text = 'SCRBMA'::text THEN concat(sa.study_id::text, concat('|'::text, concat(sa.subject_id::text, concat('|'::text, concat('SCREENING'::text, concat('|'::text, upper(split_part(s.specimen_type::text, ','::text, 1))))))))
-                    ELSE concat(sa.study_id::text, concat('|'::text, concat(sa.subject_id::text, concat('|'::text, concat(vis.visit_name::text, concat('|'::text, upper(split_part(s.specimen_type::text, ','::text, 1))))))))
-                END AS concat_id
-           FROM ( SELECT specimen.specimen_id, specimen.accession_number, specimen.study_subject, specimen.study_id, specimen.subject_id, specimen.pre_screening_id, specimen.visit_id, specimen.vendor_id, specimen.specimen_class, specimen.specimen_type, specimen.storage_location, specimen.storage_state, specimen.storage_temperature, specimen.vendor_specimen_id, specimen.vendor_subject_id, specimen.vendor_study_id, specimen.site_specimen_id, specimen.specimen_condition, specimen.specimen_extract_location, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.vendor_specimen_type, specimen.specimen_status, specimen.specimen_accession_date, specimen.specimen_reporting_date, specimen.repeat_status, specimen.repeat_times, specimen.number_of_slides, specimen.number_of_slides_needed, specimen.reason_qualified_or_failed, specimen.sample_pass_fail_status, specimen.run_id, specimen.composite_primary_key, specimen.row_id
-                   FROM orbit_64407564mmy3009.specimen
-                  WHERE specimen.vendor_id = 29) sa
-      LEFT JOIN orbit.specimen s ON s.accession_number::text = sa.accession_number::text AND s.study_id::text = sa.study_id::text
-   LEFT JOIN orbit_64407564mmy3009.visit vis ON vis.subject_id::text = sa.subject_id::text AND vis.visit_date_actl::text = "left"(s.specimen_collection_date::text, 10)
-  WHERE s.specimen_class::text ~~ '%MRD%'::text OR s.specimen_class::text ~~ '%ARCHIVAL%'::text) s ON pc.concat_id = s.concat_id) rave ON rave.accession_number::text = s.accession_number::text
-   LEFT JOIN ( SELECT a.specimen_id, a.test_name, a.test_result_orig_value
-   FROM ( SELECT specimen_test.specimen_test_id, specimen_test.specimen_id, specimen_test.study_id, specimen_test.vendor_id, specimen_test.vendor_specimen_id, specimen_test.test_code, specimen_test.test_name, specimen_test.test_category, specimen_test.test_result_orig_value, specimen_test.test_result_orig_value_string, specimen_test.test_result_orig_value_numeric, specimen_test.test_result_orig_value_datetime, specimen_test.test_result_orig_value_cancelled, specimen_test.test_result_orig_unit, specimen_test.test_result_std_value, specimen_test.test_result_std_unit, specimen_test.test_status, specimen_test.basline_flag, specimen_test.test_start_date_time, specimen_test.test_end_date_time, specimen_test.test_category_code, specimen_test.test_result_date, specimen_test.test_filed_date, specimen_test.test_review_date, specimen_test.reason_test_qualified_or_failed, specimen_test."comment", specimen_test.labcorp_sequence_num, specimen_test.run_id, specimen_test.composite_primary_key, specimen_test.row_id
-           FROM orbit_64407564mmy3009.specimen_test
-          WHERE specimen_test.test_name::text = 'sample_amount_ng'::text) a
-   LEFT JOIN orbit_64407564mmy3009.specimen s ON s.specimen_id::text = a.specimen_id::text) dna ON dna.specimen_id::text = s.specimen_id::text
-   LEFT JOIN orbit_64407564mmy3009.study_site sst ON ss.site_id::text = sst.site_id::text AND ss.study_id::text = sst.study_id::text
-   LEFT JOIN orbit_64407564mmy3009.site os ON ss.site_id::text = os.site_id::text AND ss.study_id::text = os.study_id::text AND sst.site_country::text = os.site_country_code::text
-   LEFT JOIN ( SELECT specimen.specimen_id, "max"(specimen.accession_number::text) AS accession_number, "max"(specimen.specimen_class::text) AS specimen_class
+               WHEN am.analyte_panel::text ~~ '%BMA%'::text OR am.analyte_panel::text ~~ '%Bone Marrow%'::text OR am.analyte_panel::text ~~ '%A820%'::text THEN 'BMA'::text
+               ELSE 'BLOOD'::text
+           END AS assay_panel_str, "left"(am.analyte_panel::text, 4) + ' '::text + 
+           CASE
+               WHEN am.analyte_panel::text ~~ '%BMA%'::text OR am.analyte_panel::text ~~ '%Bone Marrow%'::text OR am.analyte_panel::text ~~ '%A820%'::text THEN 'BMA'::text
+               ELSE 'BLOOD'::text
+           END AS "assay panel"
+      FROM orbit_64407564mmy3009.analyte_measurement am) ap ON ap.analyte_panel::text = am.analyte_panel::text
+   LEFT JOIN ( SELECT DISTINCT specimen.visit_id, specimen.vendor_specimen_id, specimen.accession_number
    FROM orbit_64407564mmy3009.specimen
-  WHERE specimen.vendor_id = 21 OR specimen.vendor_id = 29
-  GROUP BY specimen.specimen_id) t1 ON t1.specimen_id::text = s.specimen_id::text
-  ORDER BY ss.site_id, ss.subject_id, s.accession_number;
+  WHERE specimen.vendor_id = 28) s ON s.vendor_specimen_id::text = am.vendor_specimen_id::text
+   LEFT JOIN ( SELECT q2_critical_visits.study_id, q2_critical_visits.value_type, q2_critical_visits.value, q2_critical_visits.report_value_type, q2_critical_visits.report_value
+   FROM orbit_64407564mmy3009.q2_critical_visits) v ON v.value::text = s.visit_id::text AND v.study_id::text = ss.study_id::text;
