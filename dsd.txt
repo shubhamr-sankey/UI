@@ -1,16 +1,15 @@
--- orbit_64407564mmy3009.specimen_genomic_assay source
+-- orbit_64407564mmy3009.specimen_lineage_origin source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.specimen_genomic_assay
-AS SELECT specimen_genomic_assay.specimen_genomic_assay_id, specimen_genomic_assay.specimen_id, specimen_genomic_assay.genomic_assay_id, specimen_genomic_assay.median_exon_coverage, specimen_genomic_assay.run_id, specimen_genomic_assay.row_id
-   FROM orbit.specimen_genomic_assay
-  WHERE (specimen_genomic_assay.specimen_id IN (( SELECT specimen.specimen_id
-           FROM orbit_64407564mmy3009.specimen
-          GROUP BY specimen.specimen_id
-UNION 
-         SELECT specimen_biomarker_pgx_finding.specimen_id
-           FROM orbit_64407564mmy3009.specimen_biomarker_pgx_finding
-          GROUP BY specimen_biomarker_pgx_finding.specimen_id)
-UNION 
-         SELECT specimen_pgx_finding.specimen_id
-           FROM orbit_64407564mmy3009.specimen_pgx_finding
-          GROUP BY specimen_pgx_finding.specimen_id));
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.specimen_lineage_origin
+AS WITH RECURSIVE hierarchical_relationship(study_id, vendor_id_source_origin, specimen_id_source_origin, vendor_id_target, specimen_id_target, lineage_path) AS (
+         SELECT specimen_lineage.study_id, specimen_lineage.vendor_id_source AS vendor_id_source_origin, specimen_lineage.specimen_id_source AS specimen_id_source_origin, specimen_lineage.vendor_id_target, specimen_lineage.specimen_id_target, ((specimen_lineage.specimen_id_source::text || ' | '::text) || specimen_lineage.vendor_id_source::text)::character varying AS lineage_path
+           FROM orbit_64407564mmy3009.specimen_lineage
+          WHERE NOT (specimen_lineage.specimen_id_source IN ( SELECT COALESCE(specimen_lineage.specimen_id_target, ''::character varying) AS specimen_id_target
+                   FROM orbit_64407564mmy3009.specimen_lineage))
+UNION ALL 
+         SELECT sl.study_id, hr.vendor_id_source_origin, hr.specimen_id_source_origin, sl.vendor_id_target, sl.specimen_id_target, ((((hr.lineage_path::text || ' -> '::text) || sl.specimen_id_source::text) || ' | '::text) || sl.vendor_id_source::text)::character varying AS lineage_path
+           FROM orbit_64407564mmy3009.specimen_lineage sl
+      JOIN hierarchical_relationship hr ON sl.specimen_id_source::text = hr.specimen_id_target::text
+        )
+ SELECT hierarchical_relationship.study_id, hierarchical_relationship.vendor_id_source_origin, hierarchical_relationship.specimen_id_source_origin, hierarchical_relationship.vendor_id_target, hierarchical_relationship.specimen_id_target, (((hierarchical_relationship.lineage_path::text || ' -> '::text) || hierarchical_relationship.specimen_id_target::text) || ' | '::text) || hierarchical_relationship.vendor_id_target::text AS lineage_path
+   FROM hierarchical_relationship;
