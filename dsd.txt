@@ -1,1 +1,11 @@
-e
+
+msg:
+"001003 (42000): 01bc01c7-010d-28a3-003c-3a073f132242: SQL compilation error:\nsyntax error line 1 at position 174 unexpected '_type'."
+query:
+'CREATE OR REPLACE VIEW "CERBA"."code_validation_vw" AS  SELECT DISTINCT sid."STUDY"_id, v.vendor_name, \'sm_code\'::text AS value_type, sp."SPECIMEN"_type, sp.vendor_"SPECIMEN"_type AS orig_value, \n        CASE\n            WHEN sp.vendor_id = 3 AND sp.vendor_"SPECIMEN"_type::text ~~ \'SM%\'::text THEN "substring"(sp.vendor_"SPECIMEN"_type::text, 1, 4)\n            WHEN sp.vendor_id = 3 AND sp.vendor_"SPECIMEN"_type::text ~~ \'HM%\'::text THEN "substring"(sp.vendor_"SPECIMEN"_type::text, 1, 4)\n            WHEN sp.vendor_id = 3 AND sp."SPECIMEN"_class::text ~~ \'TBO%\'::text THEN "substring"(sp."SPECIMEN"_class::text, 1, 6)\n            WHEN sp.vendor_id = 21 THEN sp."SPECIMEN"_class::text\n            ELSE NULL::text\n        END::character varying AS value, c.report_value_type, \n        CASE\n            WHEN sp.vendor_id = 3 THEN c.report_value\n            WHEN sp.vendor_id = 21 THEN initcap(sp."SPECIMEN"_type::text)::character varying\n            ELSE NULL::character varying\n        END AS report_va...
+raw_msg:
+"SQL compilation error:\nsyntax error line 1 at position 174 unexpected '_type'."
+sfqid:
+'01bc01c7-010d-28a3-003c-3a073f132242'
+sqlstate:
+'42000'
