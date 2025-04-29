@@ -1,15 +1,21 @@
--- orbit_64407564mmy3009.specimen_lineage_origin source
+-- orbit_64407564mmy3009.spep_measurement_lookup source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.specimen_lineage_origin
-AS WITH RECURSIVE hierarchical_relationship(study_id, vendor_id_source_origin, specimen_id_source_origin, vendor_id_target, specimen_id_target, lineage_path) AS (
-         SELECT specimen_lineage.study_id, specimen_lineage.vendor_id_source AS vendor_id_source_origin, specimen_lineage.specimen_id_source AS specimen_id_source_origin, specimen_lineage.vendor_id_target, specimen_lineage.specimen_id_target, ((specimen_lineage.specimen_id_source::text || ' | '::text) || specimen_lineage.vendor_id_source::text)::character varying AS lineage_path
-           FROM orbit_64407564mmy3009.specimen_lineage
-          WHERE NOT (specimen_lineage.specimen_id_source IN ( SELECT COALESCE(specimen_lineage.specimen_id_target, ''::character varying) AS specimen_id_target
-                   FROM orbit_64407564mmy3009.specimen_lineage))
-UNION ALL 
-         SELECT sl.study_id, hr.vendor_id_source_origin, hr.specimen_id_source_origin, sl.vendor_id_target, sl.specimen_id_target, ((((hr.lineage_path::text || ' -> '::text) || sl.specimen_id_source::text) || ' | '::text) || sl.vendor_id_source::text)::character varying AS lineage_path
-           FROM orbit_64407564mmy3009.specimen_lineage sl
-      JOIN hierarchical_relationship hr ON sl.specimen_id_source::text = hr.specimen_id_target::text
-        )
- SELECT hierarchical_relationship.study_id, hierarchical_relationship.vendor_id_source_origin, hierarchical_relationship.specimen_id_source_origin, hierarchical_relationship.vendor_id_target, hierarchical_relationship.specimen_id_target, (((hierarchical_relationship.lineage_path::text || ' -> '::text) || hierarchical_relationship.specimen_id_target::text) || ' | '::text) || hierarchical_relationship.vendor_id_target::text AS lineage_path
-   FROM hierarchical_relationship;
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.spep_measurement_lookup
+AS SELECT ((((((((study_subject.study_id::text || '|'::text) || study_subject.study_id::text) || '|'::text) || study_subject.subject_id::text) || COALESCE(trunc(spep.specimen_collection_date)::character varying, ''::character varying)::text) || 
+        CASE
+            WHEN spep.specimen_collection_date IS NOT NULL THEN '|'::text
+            ELSE ''::text
+        END) || COALESCE(spep.spep_mg_dl::character varying, ''::character varying)::text) || 
+        CASE
+            WHEN spep.spep_mg_dl IS NOT NULL THEN '|'::text
+            ELSE ''::text
+        END) || COALESCE(spep.visit_id, ''::character varying)::text AS unique_key, study_subject.study_id, study_subject.subject_id, study_subject.site_id, spep.specimen_collection_date AS spep_collection_date, spep.spep_mg_dl, spep.visit_id
+   FROM orbit_64407564mmy3009.study_subject study_subject
+   LEFT JOIN ( SELECT DISTINCT spep_kappa_lambda.subject_id, spep_kappa_lambda.study_id, spep_kappa_lambda.accession_number, spep_kappa_lambda.specimen_collection_date, spep_kappa_lambda.visit_id, specimen_test.test_name, specimen_test.test_result_orig_value_numeric::numeric * 100::numeric AS spep_mg_dl
+           FROM ( SELECT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen.visit_id, specimen_test.test_name, specimen_test.test_result_orig_value_numeric
+                   FROM orbit_64407564mmy3009.specimen specimen
+              LEFT JOIN orbit_64407564mmy3009.specimen_test specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
+             WHERE specimen_test.test_name::text = 'MyeloSPE Immunofix.Impress1-CL'::text AND specimen_test.test_result_orig_value::text ~~ 'IgG%'::text) spep_kappa_lambda
+      JOIN orbit_64407564mmy3009.specimen specimen ON spep_kappa_lambda.subject_id::text = specimen.subject_id::text AND spep_kappa_lambda.accession_number::text = specimen.accession_number::text AND trunc(spep_kappa_lambda.specimen_collection_date) = trunc(specimen.specimen_collection_date)
+   JOIN orbit_64407564mmy3009.specimen_test specimen_test ON spep_kappa_lambda.specimen_id::text = specimen_test.specimen_id::text
+  WHERE specimen_test.test_name::text = 'Total M-Protein, Serum-CL-QT'::text) spep ON study_subject.subject_id::text = spep.subject_id::text;
