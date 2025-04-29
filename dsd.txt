@@ -1,27 +1,16 @@
--- orbit_64407564mmy3009.q2_flow_cytometry_vw source
+-- orbit_64407564mmy3009.specimen_genomic_assay source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.q2_flow_cytometry_vw
-AS SELECT DISTINCT ss.study_id, ss.subject_id, ss.site_id, "left"(split_part(ss.site_id::text, '-'::text, 2), 2) AS country_code, ss.date_screening, ss.date_enrollment, ss.cohort, ss.study_arm, ss.study_subject_status, am."domain", am.vendor_id, "right"(am.subject_id::text, 6) AS subject_id_q2, am.specimen_id, am.vendor_specimen_id, s.accession_number, s.visit_id, v.report_value AS critical_visit, am.analyte_panel, ap."assay panel", am.status, 
-        CASE
-            WHEN am."domain"::text = 'LB'::text AND am.status IS NULL THEN 'D'::character varying
-            WHEN am."domain"::text = 'LB'::text AND am.status::text = 'NOT DONE'::text THEN 'X'::character varying
-            WHEN am."domain"::text = 'vendor_file'::text THEN am.status
-            ELSE NULL::character varying
-        END AS test_status, am.measurement_name, am.measurement_value, am.measurement_value_unit, am."comment", am.original_source_reportable, am.original_source_reportable_code
-   FROM orbit_64407564mmy3009.study_subject ss
-   LEFT JOIN orbit_64407564mmy3009.analyte_measurement am ON am.subject_id::text = ss.subject_id::text
-   LEFT JOIN ( SELECT DISTINCT am.analyte_panel, "left"(am.analyte_panel::text, 4) AS assay_panel_num, 
-           CASE
-               WHEN am.analyte_panel::text ~~ '%BMA%'::text OR am.analyte_panel::text ~~ '%Bone Marrow%'::text OR am.analyte_panel::text ~~ '%A820%'::text THEN 'BMA'::text
-               ELSE 'BLOOD'::text
-           END AS assay_panel_str, "left"(am.analyte_panel::text, 4) + ' '::text + 
-           CASE
-               WHEN am.analyte_panel::text ~~ '%BMA%'::text OR am.analyte_panel::text ~~ '%Bone Marrow%'::text OR am.analyte_panel::text ~~ '%A820%'::text THEN 'BMA'::text
-               ELSE 'BLOOD'::text
-           END AS "assay panel"
-      FROM orbit_64407564mmy3009.analyte_measurement am) ap ON ap.analyte_panel::text = am.analyte_panel::text
-   LEFT JOIN ( SELECT DISTINCT specimen.visit_id, specimen.vendor_specimen_id, specimen.accession_number
-   FROM orbit_64407564mmy3009.specimen
-  WHERE specimen.vendor_id = 28) s ON s.vendor_specimen_id::text = am.vendor_specimen_id::text
-   LEFT JOIN ( SELECT q2_critical_visits.study_id, q2_critical_visits.value_type, q2_critical_visits.value, q2_critical_visits.report_value_type, q2_critical_visits.report_value
-   FROM orbit_64407564mmy3009.q2_critical_visits) v ON v.value::text = s.visit_id::text AND v.study_id::text = ss.study_id::text;
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.specimen_genomic_assay
+AS SELECT specimen_genomic_assay.specimen_genomic_assay_id, specimen_genomic_assay.specimen_id, specimen_genomic_assay.genomic_assay_id, specimen_genomic_assay.median_exon_coverage, specimen_genomic_assay.run_id, specimen_genomic_assay.row_id
+   FROM orbit.specimen_genomic_assay
+  WHERE (specimen_genomic_assay.specimen_id IN (( SELECT specimen.specimen_id
+           FROM orbit_64407564mmy3009.specimen
+          GROUP BY specimen.specimen_id
+UNION 
+         SELECT specimen_biomarker_pgx_finding.specimen_id
+           FROM orbit_64407564mmy3009.specimen_biomarker_pgx_finding
+          GROUP BY specimen_biomarker_pgx_finding.specimen_id)
+UNION 
+         SELECT specimen_pgx_finding.specimen_id
+           FROM orbit_64407564mmy3009.specimen_pgx_finding
+          GROUP BY specimen_pgx_finding.specimen_id));
