@@ -1,6 +1,85 @@
--- orbit_64407564mmy3009.gene_signatures_scores source
+-- orbit_64407564mmy3009.igg_measurement_lookup source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_signatures_scores
-AS SELECT gene_signatures_scores.exp_assay_id, gene_signatures_scores.study_id, gene_signatures_scores.subject_id, gene_signatures_scores.signature_name, gene_signatures_scores.score
-   FROM orbit.gene_signatures_scores
-  WHERE gene_signatures_scores.study_id::text = '64407564MMY3009'::text;
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.igg_measurement_lookup
+AS SELECT ((((((((study_subject.study_id::text || '|'::text) || study_subject.study_id::text) || '|'::text) || study_subject.subject_id::text) || COALESCE(trunc(igg_mg_dl.specimen_collection_date)::character varying, ''::character varying)::text) || 
+        CASE
+            WHEN igg_mg_dl.specimen_collection_date IS NOT NULL THEN '|'::text
+            ELSE ''::text
+        END) || COALESCE(igg_mg_dl.test_result_std_value, ''::character varying)::text) || 
+        CASE
+            WHEN igg_mg_dl.test_result_std_value IS NOT NULL THEN '|'::text
+            ELSE ''::text
+        END) || COALESCE(igg_mg_dl.visit_id, ''::character varying)::text AS unique_key, study_subject.study_id, study_subject.subject_id, study_subject.site_id, igg_mg_dl.specimen_collection_date AS igg_collection_date, igg_mg_dl.test_result_std_value_char AS igg_mg_dl, igg_mg_dl.visit_id
+   FROM orbit_64407564mmy3009.study_subject study_subject
+   LEFT JOIN ( SELECT DISTINCT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen.visit_id, specimen_test.test_result_std_value, 
+                CASE
+                    WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                    ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                END AS test_result_std_value_numeric_mg, 
+                CASE
+                    WHEN 
+                    CASE
+                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                    END > spep.spep_mg_dl::double precision THEN 
+                    CASE
+                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                    END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
+                    ELSE 
+                    CASE
+                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                    END
+                END AS calculated_igg_value, 
+                CASE
+                    WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN (regexp_substr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) || round(
+                    CASE
+                        WHEN 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END > spep.spep_mg_dl::double precision THEN 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
+                        ELSE 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END
+                    END, 2::numeric)::character varying(255)::text)::character varying
+                    ELSE 
+                    CASE
+                        WHEN 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END > spep.spep_mg_dl::double precision THEN 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
+                        ELSE 
+                        CASE
+                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
+                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
+                        END
+                    END::character varying(255)
+                END AS test_result_std_value_char, 
+                CASE
+                    WHEN spep.spep_mg_dl IS NULL OR spep.spep_mg_dl = 0::numeric THEN 0
+                    ELSE 1
+                END AS igg_calculation_flag
+           FROM orbit_64407564mmy3009.specimen specimen
+      LEFT JOIN orbit_64407564mmy3009.specimen_test specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
+   LEFT JOIN ( SELECT DISTINCT spep_kappa_lambda.subject_id, spep_kappa_lambda.study_id, spep_kappa_lambda.accession_number, spep_kappa_lambda.specimen_collection_date, specimen_test.test_name, specimen_test.test_result_orig_value_numeric::numeric * 100::numeric AS spep_mg_dl
+              FROM ( SELECT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen_test.test_name, specimen_test.test_result_orig_value_numeric
+                      FROM orbit_64407564mmy3009.specimen
+                 LEFT JOIN orbit_64407564mmy3009.specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
+                WHERE specimen_test.test_name::text = 'MyeloSPE Immunofix.Impress1-CL'::text AND specimen_test.test_result_orig_value::text ~~ 'IgG%'::text) spep_kappa_lambda
+         JOIN orbit_64407564mmy3009.specimen specimen ON spep_kappa_lambda.subject_id::text = specimen.subject_id::text AND spep_kappa_lambda.accession_number::text = specimen.accession_number::text AND trunc(spep_kappa_lambda.specimen_collection_date) = trunc(specimen.specimen_collection_date)
+    JOIN orbit_64407564mmy3009.specimen_test ON spep_kappa_lambda.specimen_id::text = specimen_test.specimen_id::text
+   WHERE specimen_test.test_name::text = 'Total M-Protein, Serum-CL-QT'::text) spep ON specimen.subject_id::text = spep.subject_id::text AND specimen.accession_number::text = spep.accession_number::text AND specimen.specimen_collection_date = spep.specimen_collection_date
+  WHERE specimen.vendor_id = 3 AND specimen_test.test_category::text ~~ 'IMMUNOGLOBULIN%'::text AND specimen_test.test_name::text ~~ 'Immunoglobulin G%'::text) igg_mg_dl ON study_subject.subject_id::text = igg_mg_dl.subject_id::text;
