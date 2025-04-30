@@ -1,6 +1,6 @@
--- orbit_64407564mmy3009.gene_signatures_cat source
+-- orbit_64407564mmy3009.gene_signatures_scores source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_signatures_cat
-AS SELECT gene_signatures_cat.exp_assay_id, gene_signatures_cat.study_id, gene_signatures_cat.subject_id, gene_signatures_cat.signature_name, gene_signatures_cat.value
-   FROM orbit.gene_signatures_cat
-  WHERE gene_signatures_cat.study_id::text = '64407564MMY3009'::text;
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_signatures_scores
+AS SELECT gene_signatures_scores.exp_assay_id, gene_signatures_scores.study_id, gene_signatures_scores.subject_id, gene_signatures_scores.signature_name, gene_signatures_scores.score
+   FROM orbit.gene_signatures_scores
+  WHERE gene_signatures_scores.study_id::text = '64407564MMY3009'::text;
