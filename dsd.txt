@@ -1,15 +1,12 @@
--- orbit_64407564mmy3009.row_source_data_study_vw source
+-- orbit_64407564mmy3009.shipping_error_vw source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.row_source_data_study_vw
-AS SELECT dm.table_name, 
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.shipping_error_vw
+AS SELECT DISTINCT s.specimen_id, s.accession_number, s.study_subject, s.study_id, s.subject_id, s.pre_screening_id, s.visit_id, s.vendor_id, s.specimen_class, s.specimen_type, s.storage_location, s.storage_state, s.storage_temperature, s.vendor_specimen_id, s.vendor_subject_id, s.vendor_study_id, s.site_specimen_id, s.specimen_condition, s.specimen_extract_location, s.specimen_collection_date, s.specimen_received_date, s.vendor_specimen_type, s.specimen_status, s.specimen_accession_date, s.specimen_reporting_date, s.repeat_status, s.repeat_times, s.number_of_slides, s.number_of_slides_needed, s.reason_qualified_or_failed, s.sample_pass_fail_status, s.run_id, s.composite_primary_key, s.row_id, t.site_id, t.site_name, t.investigator_name, t.site_city, t.site_state, t.site_postcode, t.site_country_code, t.site_country_name, 
         CASE
-            WHEN dm.dataset_name::text = ANY (ARRAY['iaware_orbit_site'::text, 'iaware_orbit_study'::text, 'iaware_orbit_study_site'::text, 'iaware_orbit_study_subject'::text, 'iaware_orbit_visit'::text, 'covance_protocol'::text, 'covance_investigator'::text, 'covance_patient'::text, 'covance_group'::text, 'covance_lab_test'::text, 'covance_lab_result'::text, 'covance_container'::text, 'fmi_query_log'::text, 'fmi_psst'::text, 'fmi_oapl'::text, 'fmi_ospl'::text, 'fmi_biomarker_mapping'::text, 'fmi_lsst'::text, 'invitae_looker'::text, 'cell_carta_sample_inventory'::text, 'cell_carta_image_assay_results'::text, 'iwrs_subject_summary'::text, 'edcom_visit'::text]) THEN 'Legacy Dataset - Stitched'::character varying
-            WHEN dm.dataset_name::text = ANY (ARRAY['analyte'::text, 'analyte_characterization'::text, 'genes'::text, 'genomic_assay'::text, 'site'::text, 'specimen_genomic_assay'::text, 'analyte_measurement'::text, 'genomic_variant'::text, 'specimen'::text, 'specimen_event'::text, 'specimen_biomarker_pgx_finding'::text, 'specimen_pgx_finding'::text, 'specimen_test'::text, 'study'::text, 'study_site'::text, 'study_subject'::text, 'study_subject_consent'::text, 'study_subject_history'::text, 'subject_drug_treatment'::text, 'subject_test'::text, 'subject_test_response'::text, 'visit'::text, 'specimen_lineage'::text, 'vendor'::text, 'vendor_assay_genomic'::text, 'genomic_variant_type'::text]) THEN 'ORBIT Redshift'::character varying
-            ELSE meta.dataset_type
-        END AS dataset_type, dm.row_id, dm.study_id, dm.primary_key, dm.dataset_name, meta.file_name, meta.s3_source_location, meta.source_modified_time AS latest_modified_time
-   FROM ( SELECT st.table_name, st.row_id, st.study_id, st.primary_key, COALESCE(info.dataset_name, st.dataset_info) AS dataset_name
-           FROM orbit_64407564mmy3009.row_source_data_study st
-      LEFT JOIN orbit.dataset_batch_id_mapping_info info ON btrim(lower(st.dataset_info::text)) = btrim(lower(info.batch_id::text))) dm
-   LEFT JOIN ( SELECT source_data_metadata.dataset_type, source_data_metadata.dataset_name, source_data_metadata.file_name, source_data_metadata.s3_source_location, source_data_metadata.source_modified_time, source_data_metadata.study_id, source_data_metadata.table_type
-           FROM orbit.source_data_metadata
-          WHERE source_data_metadata.study_id::text = '64407564MMY3009'::text OR source_data_metadata.study_id::text = ''::text) meta ON btrim(lower(dm.dataset_name::text)) = btrim(lower(meta.dataset_name::text));
+            WHEN lower(s.specimen_class::text) ~~ '%re-receipt%'::text THEN 'Labcorp Re-Receipt'::text
+            ELSE 'Incorrect Destination (Labcorp)'::text
+        END AS issue_type
+   FROM orbit_64407564mmy3009.specimen s
+   JOIN orbit_64407564mmy3009.study_subject ss ON s.subject_id::text = ss.subject_id::text
+   LEFT JOIN orbit_64407564mmy3009.site t ON ss.site_id::text = t.site_id::text
+  WHERE (lower(s.specimen_class::text) ~~ '%wb%'::text OR lower(s.specimen_class::text) ~~ '%bma%'::text) AND lower(s.specimen_class::text) ~~ '%immunophenotyping%'::text;
