@@ -1,1 +1,170 @@
-=
+
+# this code is for only specific table ddl creation to snowflakr from redhsift
+
+import psycopg2
+import snowflake.connector
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
+# -------------------------------------------
+# Redshift connection configuration
+# -------------------------------------------
+REDSHIFT_HOST = 'medai-orbit.cqibeghf1hd5.us-east-1.redshift.amazonaws.com'
+REDSHIFT_PORT = '5439'  # Default Redshift port
+REDSHIFT_USER = 'orbit_sa_read_only'
+REDSHIFT_PASSWORD = '419iKpjj-zPX'
+REDSHIFT_DB = 'orbit'
+
+# -------------------------------------------
+# Snowflake connection configuration
+# -------------------------------------------
+sf_user = 'SA-JRDUS-ORBIT-ENG-D'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+sf_database = 'ORBIT_DEV'
+sf_schema = 'CERBA'
+sf_role = 'ITS_APP_DEV_RDDW_ORBIT_DEVELOPERS'
+
+# Path to your private key (.p8 or .pem)
+PRIVATE_KEY_PATH = 'sa-jrdus-orbit-eng-d_rsa_key.p8'  # 🔁 UPDATE THIS
+PRIVATE_KEY_PASSPHRASE = b'0rB1THkjSu9'  # Or use None if the key has no passphrase
+
+# -------------------------------------------
+# Data type mapping from Redshift to Snowflake
+# -------------------------------------------
+DATA_TYPE_MAPPING = {
+    'integer': 'NUMBER',
+    'bigint': 'NUMBER',
+    'smallint': 'NUMBER',
+    'double precision': 'FLOAT',
+    'real': 'FLOAT',
+    'decimal': 'NUMBER',
+    'numeric': 'NUMBER',
+    'character varying': 'STRING',
+    'character': 'STRING',
+    'text': 'STRING',
+    'date': 'DATE',
+    'timestamp': 'TIMESTAMP',
+    'timestamp without time zone': 'TIMESTAMP',
+    'boolean': 'BOOLEAN',
+    'uuid': 'STRING',
+    'bytea': 'BINARY'
+}
+
+# -------------------------------------------
+# Function to connect to Redshift
+# -------------------------------------------
+def connect_to_redshift():
+    return psycopg2.connect(
+        dbname=REDSHIFT_DB,
+        user=REDSHIFT_USER,
+        password=REDSHIFT_PASSWORD,
+        host=REDSHIFT_HOST,
+        port=REDSHIFT_PORT
+    )
+
+# -------------------------------------------
+# Load private key for Snowflake
+# -------------------------------------------
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+# -------------------------------------------
+# Function to connect to Snowflake with key pair
+# -------------------------------------------
+def connect_to_snowflake():
+    private_key = get_private_key()
+
+    return snowflake.connector.connect(
+        user=sf_user,
+        account=sf_account,
+        private_key=private_key,
+        warehouse=sf_warehouse,
+        database=sf_database,
+        schema=sf_schema,
+        role=sf_role
+    )
+
+# -------------------------------------------
+# Fetch schema information for the vendor table from Redshift
+# -------------------------------------------
+def fetch_redshift_vendor_schema():
+    connection = connect_to_redshift()
+    cursor = connection.cursor()
+
+    query = """
+    SELECT c.table_name, c.column_name, c.data_type
+    FROM information_schema.columns c
+    JOIN pg_class p ON c.table_name = p.relname
+    WHERE c.table_schema = 'orbit_64407564mmy3009'
+    AND p.relkind = 'r'
+    AND p.relnamespace = (
+        SELECT oid 
+        FROM pg_namespace 
+        WHERE nspname = 'orbit_64407564mmy3009'
+    )
+    AND c.table_name = 'protocol_soa'  -- Only fetch schema for 'vendor' table
+    ORDER BY c.table_name, c.ordinal_position;
+    """
+
+    cursor.execute(query)
+    schema_data = cursor.fetchall()
+    connection.close()
+    return schema_data
+
+# -------------------------------------------
+# Create Snowflake table from Redshift schema
+# -------------------------------------------
+def create_snowflake_table(table_name, columns):
+    connection = connect_to_snowflake()
+    cursor = connection.cursor()
+
+    create_table_query = f"CREATE OR REPLACE TABLE {sf_schema}.{table_name} ("
+    column_definitions = []
+
+    for col_name, col_type in columns:
+        snowflake_type = DATA_TYPE_MAPPING.get(col_type, 'STRING')
+        column_definitions.append(f"{col_name} {snowflake_type}")
+
+    create_table_query += ', '.join(column_definitions) + ')'
+
+    try:
+        cursor.execute(create_table_query)
+        print(f"✅ Table {table_name} created in Snowflake.")
+    except Exception as e:
+        print(f"❌ Error creating table {table_name}: {e}")
+    
+    connection.close()
+
+# -------------------------------------------
+# Migrate schema: Redshift → Snowflake for the 'vendor' table
+# -------------------------------------------
+def migrate_vendor_table_to_snowflake():
+    schema_data = fetch_redshift_vendor_schema()
+
+    # Group by table name
+    tables = {}
+    for table_name, column_name, data_type in schema_data:
+        if table_name not in tables:
+            tables[table_name] = []
+        tables[table_name].append((column_name, data_type))
+
+    # Create tables in Snowflake (only 'vendor' table)
+    for table_name, columns in tables.items():
+        create_snowflake_table(table_name, columns)
+
+# -------------------------------------------
+# Run it
+# -------------------------------------------
+if __name__ == "__main__":
+    migrate_vendor_table_to_snowflake()
