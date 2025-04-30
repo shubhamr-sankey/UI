@@ -1,9 +1,6 @@
--- orbit_64407564mmy3009.gene_signatures source
+-- orbit_64407564mmy3009.gene_signatures_cat source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_signatures
-AS SELECT gene_signatures.signature_name, gene_signatures.signature, gene_signatures.citation, gene_signatures.description, gene_signatures.inventor, gene_signatures.endpoint, gene_signatures.disease, gene_signatures."model_type", gene_signatures.institution, gene_signatures.create_date, gene_signatures.class_type
-   FROM orbit.gene_signatures
-  WHERE (gene_signatures.signature IN ( SELECT gene_signatures_cat.signature_name
-           FROM orbit.gene_signatures_cat
-          WHERE gene_signatures_cat.study_id::text = '64407564MMY3009'::text
-          GROUP BY gene_signatures_cat.signature_name));
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_signatures_cat
+AS SELECT gene_signatures_cat.exp_assay_id, gene_signatures_cat.study_id, gene_signatures_cat.subject_id, gene_signatures_cat.signature_name, gene_signatures_cat.value
+   FROM orbit.gene_signatures_cat
+  WHERE gene_signatures_cat.study_id::text = '64407564MMY3009'::text;
