@@ -1,21 +1,98 @@
--- orbit_64407564mmy3009.spep_measurement_lookup source
+import snowflake.connector
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.spep_measurement_lookup
-AS SELECT ((((((((study_subject.study_id::text || '|'::text) || study_subject.study_id::text) || '|'::text) || study_subject.subject_id::text) || COALESCE(trunc(spep.specimen_collection_date)::character varying, ''::character varying)::text) || 
-        CASE
-            WHEN spep.specimen_collection_date IS NOT NULL THEN '|'::text
-            ELSE ''::text
-        END) || COALESCE(spep.spep_mg_dl::character varying, ''::character varying)::text) || 
-        CASE
-            WHEN spep.spep_mg_dl IS NOT NULL THEN '|'::text
-            ELSE ''::text
-        END) || COALESCE(spep.visit_id, ''::character varying)::text AS unique_key, study_subject.study_id, study_subject.subject_id, study_subject.site_id, spep.specimen_collection_date AS spep_collection_date, spep.spep_mg_dl, spep.visit_id
-   FROM orbit_64407564mmy3009.study_subject study_subject
-   LEFT JOIN ( SELECT DISTINCT spep_kappa_lambda.subject_id, spep_kappa_lambda.study_id, spep_kappa_lambda.accession_number, spep_kappa_lambda.specimen_collection_date, spep_kappa_lambda.visit_id, specimen_test.test_name, specimen_test.test_result_orig_value_numeric::numeric * 100::numeric AS spep_mg_dl
-           FROM ( SELECT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen.visit_id, specimen_test.test_name, specimen_test.test_result_orig_value_numeric
-                   FROM orbit_64407564mmy3009.specimen specimen
-              LEFT JOIN orbit_64407564mmy3009.specimen_test specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
-             WHERE specimen_test.test_name::text = 'MyeloSPE Immunofix.Impress1-CL'::text AND specimen_test.test_result_orig_value::text ~~ 'IgG%'::text) spep_kappa_lambda
-      JOIN orbit_64407564mmy3009.specimen specimen ON spep_kappa_lambda.subject_id::text = specimen.subject_id::text AND spep_kappa_lambda.accession_number::text = specimen.accession_number::text AND trunc(spep_kappa_lambda.specimen_collection_date) = trunc(specimen.specimen_collection_date)
-   JOIN orbit_64407564mmy3009.specimen_test specimen_test ON spep_kappa_lambda.specimen_id::text = specimen_test.specimen_id::text
-  WHERE specimen_test.test_name::text = 'Total M-Protein, Serum-CL-QT'::text) spep ON study_subject.subject_id::text = spep.subject_id::text;
+# Snowflake connection configuration
+sf_user = 'SA-JRDUS-ORBIT-ENG-D'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+sf_database = 'ORBIT_DEV'
+sf_schema = 'CERBA'
+sf_role = 'ITS_APP_DEV_RDDW_ORBIT_DEVELOPERS'  # Replace with the desired role
+
+# Path to your private key (.p8 or .pem)
+PRIVATE_KEY_PATH = 'sa-jrdus-orbit-eng-d_rsa_key.p8'  # 🔁 UPDATE THIS
+PRIVATE_KEY_PASSPHRASE = b'0rB1THkjSu9'  # Or use None if the key has no passphrase
+
+# -------------------------------------------
+# Load private key for Snowflake
+# -------------------------------------------
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+# -------------------------------------------
+# Function to connect to Snowflake with role
+# -------------------------------------------
+def connect_to_snowflake():
+    private_key = get_private_key()
+
+    return snowflake.connector.connect(
+        user=sf_user,
+        account=sf_account,
+        private_key=private_key,
+        warehouse=sf_warehouse,
+        database=sf_database,
+        schema=sf_schema,
+        role=sf_role  # Add role parameter here
+    )
+
+# -------------------------------------------
+# Function to get all tables in the schema
+# -------------------------------------------
+def get_all_tables_in_schema():
+    connection = connect_to_snowflake()
+    cursor = connection.cursor()
+
+    query = f"""
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = '{sf_schema}'
+    AND table_type = 'BASE TABLE' AND table_name = 'vendor_alias'
+    """
+
+    cursor.execute(query)
+    tables = cursor.fetchall()
+    connection.close()
+
+    # Return table names (list of tuples)
+    return [table[0] for table in tables]
+
+# -------------------------------------------
+# Function to drop all tables in the schema
+# -------------------------------------------
+def drop_all_tables():
+    tables = get_all_tables_in_schema()
+
+    if not tables:
+        print("No tables found in the schema.")
+        return
+
+    connection = connect_to_snowflake()
+    cursor = connection.cursor()
+
+    for table in tables:
+        drop_query = f"DROP TABLE IF EXISTS {sf_schema}.{table}"
+
+        try:
+            cursor.execute(drop_query)
+            print(f"✅ Table {table} dropped successfully.")
+        except Exception as e:
+            print(f"❌ Error dropping table {table}: {e}")
+    
+    connection.close()
+
+# -------------------------------------------
+# Run the script to drop all tables
+# -------------------------------------------
+if __name__ == "__main__":
+    drop_all_tables()
