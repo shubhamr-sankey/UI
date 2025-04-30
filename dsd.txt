@@ -1,1 +1,178 @@
-=
+
+#this code is for specific table mention the table below
+
+import psycopg2
+import snowflake.connector
+import logging
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
+# -------------------------------------------
+# Redshift connection configuration
+# -------------------------------------------
+REDSHIFT_HOST = 'medai-orbit.cqibeghf1hd5.us-east-1.redshift.amazonaws.com'
+REDSHIFT_PORT = '5439'  # Default Redshift port
+REDSHIFT_USER = 'orbit_sa_read_only'
+REDSHIFT_PASSWORD = '419iKpjj-zPX'
+REDSHIFT_DB = 'orbit'
+
+# -------------------------------------------
+# Snowflake connection configuration
+# -------------------------------------------
+sf_user = 'SA-JRDUS-ORBIT-ENG-D'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+sf_database = 'ORBIT_DEV'
+sf_schema = 'ORBIT'
+sf_role = 'ITS_APP_DEV_RDDW_ORBIT_DEVELOPERS'
+
+# Path to your private key (.p8 or .pem)
+PRIVATE_KEY_PATH = 'sa-jrdus-orbit-eng-d_rsa_key.p8'  #  UPDATE THIS
+PRIVATE_KEY_PASSPHRASE = b'0rB1THkjSu9'   # Replace with the passphrase, or None if not required
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO,  # You can change to DEBUG for more detailed logs
+    filename='migration.log',  # Log to a file named 'migration.log'
+    filemode='w'  # 'w' mode will overwrite the log file each time the script runs
+)
+
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+
+def connect_to_redshift():
+    try:
+        connection = psycopg2.connect(
+            dbname=REDSHIFT_DB,
+            user=REDSHIFT_USER,
+            password=REDSHIFT_PASSWORD,
+            host=REDSHIFT_HOST,
+            port=REDSHIFT_PORT
+        )
+        logging.info("Connected to Redshift successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Redshift: {e}")
+        raise
+
+
+def connect_to_snowflake():
+    try:
+        private_key = get_private_key()
+
+        connection = snowflake.connector.connect(
+            user=sf_user,
+            account=sf_account,
+            private_key=private_key,
+            warehouse=sf_warehouse,
+            database=sf_database,
+            schema=sf_schema,
+            role=sf_role  # Include role
+        )
+        logging.info("Connected to Snowflake successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Snowflake: {e}")
+        raise
+
+
+
+def fetch_redshift_data_in_batches(table_name, batch_size=50000):
+    try:
+        connection = connect_to_redshift()
+        cursor = connection.cursor()
+
+        # Query to fetch data in batches, using OFFSET for pagination
+        offset = 0
+        while True:
+            query = f"SELECT * FROM orbit.{table_name} LIMIT {batch_size} OFFSET {offset}"
+            cursor.execute(query)
+
+            # Fetch rows from the result
+            rows = cursor.fetchall()
+
+            # If no rows are fetched, stop fetching more
+            if not rows:
+                break
+
+            # Fetch column names only once
+            if offset == 0:
+                column_names = [desc[0] for desc in cursor.description]
+
+            # Yielding rows in batches
+            yield column_names, rows
+
+            # Move the offset forward for the next batch
+            offset += batch_size
+
+        connection.close()
+        logging.info(f"Completed fetching data from Redshift table: {table_name}")
+    except Exception as e:
+        logging.error(f"Error fetching data from Redshift table {table_name}: {e}")
+        raise
+
+
+# -------------------------------------------
+# Function to insert data into Snowflake in batches
+# -------------------------------------------
+def insert_data_into_snowflake(table_name, column_names, rows):
+    try:
+        connection = connect_to_snowflake()
+        cursor = connection.cursor()
+
+        # Prepare the insert statement for Snowflake
+        column_names_str = ', '.join(column_names)
+        values_placeholder = ', '.join(['%s'] * len(column_names))
+
+        insert_query = f"INSERT INTO {sf_schema}.{table_name} ({column_names_str}) VALUES ({values_placeholder})"
+
+        # Execute the insert statement in batches
+        cursor.executemany(insert_query, rows)
+        connection.commit()
+        connection.close()
+
+        logging.info(f"Data inserted into Snowflake table: {table_name}")
+    except Exception as e:
+        logging.error(f"Error inserting data into Snowflake table {table_name}: {e}")
+        raise
+
+
+# -------------------------------------------
+# Function to migrate data from Redshift to Snowflake for a specific table
+# -------------------------------------------
+def migrate_data_to_snowflake():
+    try:
+        # Specify the table you want to migrate
+        table_name = 'gene_exp_scores'  # Change to the table you want to migrate
+
+        logging.info(f"Starting migration for table: {table_name}")
+
+        # Fetch and insert data in batches of 10,000 records
+        for column_names, rows in fetch_redshift_data_in_batches(table_name, batch_size=50000):
+            # Insert data into Snowflake
+            insert_data_into_snowflake(table_name, column_names, rows)
+
+        logging.info("Data migration from Redshift to Snowflake completed successfully.")
+    except Exception as e:
+        logging.error(f"Error during data migration: {e}")
+        raise
+
+
+# Main execution
+if __name__ == "__main__":
+    try:
+        migrate_data_to_snowflake()
+    except Exception as e:
+        logging.critical(f"Critical error during migration: {e}")
