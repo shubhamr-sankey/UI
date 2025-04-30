@@ -1,58 +1,15 @@
--- orbit_64407564mmy3009.sample_inventory_vw source
+-- orbit_64407564mmy3009.row_source_data_study_vw source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.sample_inventory_vw
-AS SELECT DISTINCT COALESCE("right"(ss.subject_id::text, 11), "right"(sp.subject_id::text, 11)) AS subject_id, ss.study_id, ss.study_arm, ss.cohort, ss.study_subject_status, ss.date_enrollment, ss.date_termination, ss.date_treat_termination, ss.date_screening, ss.date_screen_failure, s.site_id, s.site_name, s.site_country_name, s.site_country_code, sp.accession_number, sp.visit_id, v.vendor_id, v.vendor_name, sp.specimen_class, sp.specimen_type, sp.storage_location, sp.storage_state, sp.vendor_specimen_id, sp.specimen_condition, sp.specimen_collection_date, sp.specimen_received_date, date_diff('day'::text, sp.specimen_collection_date, sp.specimen_received_date) - date_diff('week'::text, sp.specimen_collection_date, sp.specimen_received_date) * 2 - 
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.row_source_data_study_vw
+AS SELECT dm.table_name, 
         CASE
-            WHEN pgdate_part('dow'::text, sp.specimen_collection_date) = 0::double precision THEN 1
-            ELSE 0
-        END - 
-        CASE
-            WHEN pgdate_part('dow'::text, sp.specimen_received_date) = 6::double precision THEN 1
-            ELSE 0
-        END AS bd_collect_received, sp.vendor_specimen_type, sp.specimen_status, sp.specimen_accession_date, sp.number_of_slides, sp.specimen_id, a.soa, a.sm_code
-   FROM orbit_64407564mmy3009.study_subject ss
-   FULL JOIN ( SELECT specimen.specimen_id, specimen.accession_number, specimen.study_subject, specimen.study_id, specimen.subject_id, specimen.pre_screening_id, specimen.visit_id, specimen.vendor_id, specimen.specimen_class, specimen.specimen_type, specimen.storage_location, specimen.storage_state, specimen.storage_temperature, specimen.vendor_specimen_id, specimen.vendor_subject_id, specimen.vendor_study_id, specimen.site_specimen_id, specimen.specimen_condition, specimen.specimen_extract_location, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.vendor_specimen_type, specimen.specimen_status, specimen.specimen_accession_date, specimen.specimen_reporting_date, specimen.repeat_status, specimen.repeat_times, specimen.number_of_slides, specimen.number_of_slides_needed, specimen.reason_qualified_or_failed, specimen.sample_pass_fail_status, specimen.run_id, specimen.composite_primary_key, specimen.row_id
-           FROM orbit_64407564mmy3009.specimen) sp ON "right"(ss.subject_id::text, 11) = "right"(sp.subject_id::text, 11)
-   JOIN ( SELECT DISTINCT c.vendor, sp.vendor_specimen_type, 
-           CASE
-               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN "substring"(sp.vendor_specimen_type::text, 1, 4)
-               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN "substring"(sp.vendor_specimen_type::text, 1, 4)
-               WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN "substring"(sp.specimen_class::text, 1, 6)
-               WHEN sp.vendor_id = 21 THEN sp.specimen_class::text
-               ELSE NULL::text
-           END AS sm_code, 
-           CASE
-               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN COALESCE(c.report_value, "substring"(sp.vendor_specimen_type::text, 1, 4)::character varying)
-               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN COALESCE(c.report_value, "substring"(sp.vendor_specimen_type::text, 1, 4)::character varying)
-               WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN COALESCE(c.report_value, "substring"(sp.specimen_class::text, 1, 6)::character varying)
-               WHEN sp.vendor_id = 21 THEN initcap(sp.specimen_type::text)::character varying
-               ELSE NULL::character varying
-           END AS soa
-      FROM orbit_64407564mmy3009.specimen sp
-   JOIN ( SELECT codes_of_interest.study_id, codes_of_interest.value_type, codes_of_interest.value, codes_of_interest.vendor, codes_of_interest.report_value_type, codes_of_interest.report_value
-              FROM orbit_64407564mmy3009.codes_of_interest
-             WHERE codes_of_interest.value_type::text = 'sm_code'::text) c ON "substring"(sp.vendor_specimen_type::text, 1, 4) = 
-      CASE
-          WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN c.value
-          WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN c.value
-          ELSE NULL::character varying
-      END::text OR "substring"(sp.specimen_class::text, 1, 6) = 
-      CASE
-          WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN c.value
-          ELSE NULL::character varying
-      END::text OR sp.vendor_id::text = 
-      CASE
-          WHEN sp.vendor_id = 21 THEN c.vendor
-          ELSE NULL::character varying
-      END::text) a ON sp.vendor_specimen_type::text = 
-CASE
-  WHEN sp.vendor_id = 3 THEN a.vendor_specimen_type
-  ELSE NULL::character varying
-END::text OR sp.vendor_id::text = a.vendor::text AND sp.specimen_class::text = a.sm_code OR sp.specimen_type::text = 
-CASE
-    WHEN sp.vendor_id = 21 AND sp.specimen_class IS NULL THEN upper(a.soa::text)
-    ELSE NULL::text
-END
-   LEFT JOIN orbit_64407564mmy3009.study_site sst ON ss.site_id::text = sst.site_id::text AND ss.study_id::text = sst.study_id::text
-   LEFT JOIN orbit_64407564mmy3009.site s ON ss.site_id::text = s.site_id::text AND ss.study_id::text = s.study_id::text AND sst.site_country::text = s.site_country_code::text
-   LEFT JOIN orbit_64407564mmy3009.vendor v ON sp.vendor_id = v.vendor_id;
+            WHEN dm.dataset_name::text = ANY (ARRAY['iaware_orbit_site'::text, 'iaware_orbit_study'::text, 'iaware_orbit_study_site'::text, 'iaware_orbit_study_subject'::text, 'iaware_orbit_visit'::text, 'covance_protocol'::text, 'covance_investigator'::text, 'covance_patient'::text, 'covance_group'::text, 'covance_lab_test'::text, 'covance_lab_result'::text, 'covance_container'::text, 'fmi_query_log'::text, 'fmi_psst'::text, 'fmi_oapl'::text, 'fmi_ospl'::text, 'fmi_biomarker_mapping'::text, 'fmi_lsst'::text, 'invitae_looker'::text, 'cell_carta_sample_inventory'::text, 'cell_carta_image_assay_results'::text, 'iwrs_subject_summary'::text, 'edcom_visit'::text]) THEN 'Legacy Dataset - Stitched'::character varying
+            WHEN dm.dataset_name::text = ANY (ARRAY['analyte'::text, 'analyte_characterization'::text, 'genes'::text, 'genomic_assay'::text, 'site'::text, 'specimen_genomic_assay'::text, 'analyte_measurement'::text, 'genomic_variant'::text, 'specimen'::text, 'specimen_event'::text, 'specimen_biomarker_pgx_finding'::text, 'specimen_pgx_finding'::text, 'specimen_test'::text, 'study'::text, 'study_site'::text, 'study_subject'::text, 'study_subject_consent'::text, 'study_subject_history'::text, 'subject_drug_treatment'::text, 'subject_test'::text, 'subject_test_response'::text, 'visit'::text, 'specimen_lineage'::text, 'vendor'::text, 'vendor_assay_genomic'::text, 'genomic_variant_type'::text]) THEN 'ORBIT Redshift'::character varying
+            ELSE meta.dataset_type
+        END AS dataset_type, dm.row_id, dm.study_id, dm.primary_key, dm.dataset_name, meta.file_name, meta.s3_source_location, meta.source_modified_time AS latest_modified_time
+   FROM ( SELECT st.table_name, st.row_id, st.study_id, st.primary_key, COALESCE(info.dataset_name, st.dataset_info) AS dataset_name
+           FROM orbit_64407564mmy3009.row_source_data_study st
+      LEFT JOIN orbit.dataset_batch_id_mapping_info info ON btrim(lower(st.dataset_info::text)) = btrim(lower(info.batch_id::text))) dm
+   LEFT JOIN ( SELECT source_data_metadata.dataset_type, source_data_metadata.dataset_name, source_data_metadata.file_name, source_data_metadata.s3_source_location, source_data_metadata.source_modified_time, source_data_metadata.study_id, source_data_metadata.table_type
+           FROM orbit.source_data_metadata
+          WHERE source_data_metadata.study_id::text = '64407564MMY3009'::text OR source_data_metadata.study_id::text = ''::text) meta ON btrim(lower(dm.dataset_name::text)) = btrim(lower(meta.dataset_name::text));
