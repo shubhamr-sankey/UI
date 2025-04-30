@@ -1,21 +1,9 @@
--- orbit.gene_exp_assay definition
+-- orbit_64407564mmy3009.gene_exp_assay source
 
--- Drop table
-
--- DROP TABLE orbit.gene_exp_assay;
-
---DROP TABLE orbit.gene_exp_assay;
-CREATE TABLE IF NOT EXISTS orbit.gene_exp_assay
-(
-	vendor_id INTEGER   ENCODE az64
-	,exp_assay_id INTEGER   ENCODE az64
-	,exp_assay_type VARCHAR(200)   ENCODE lzo
-	,chipset VARCHAR(200)   ENCODE lzo
-	,chipset_type VARCHAR(200)   ENCODE lzo
-	,annotation_set VARCHAR(200)   ENCODE lzo
-	,norm_method VARCHAR(200)   ENCODE lzo
-	,file_type VARCHAR(200)   ENCODE lzo
-)
-DISTSTYLE AUTO
-;
-ALTER TABLE orbit.gene_exp_assay owner to orbit_sa;
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_exp_assay
+AS SELECT gene_exp_assay.vendor_id, gene_exp_assay.exp_assay_id, gene_exp_assay.exp_assay_type, gene_exp_assay.chipset, gene_exp_assay.chipset_type, gene_exp_assay.annotation_set, gene_exp_assay.norm_method, gene_exp_assay.file_type
+   FROM orbit.gene_exp_assay
+  WHERE (gene_exp_assay.exp_assay_id IN ( SELECT gene_exp_scores.exp_assay_id
+           FROM orbit.gene_exp_scores
+          WHERE gene_exp_scores.study_id::text = '64407564MMY3009'::text
+          GROUP BY gene_exp_scores.exp_assay_id));
