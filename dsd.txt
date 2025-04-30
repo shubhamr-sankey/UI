@@ -1,9 +1,6 @@
--- orbit_64407564mmy3009.gene_exp_assay source
+-- orbit_64407564mmy3009.gene_exp_scores source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_exp_assay
-AS SELECT gene_exp_assay.vendor_id, gene_exp_assay.exp_assay_id, gene_exp_assay.exp_assay_type, gene_exp_assay.chipset, gene_exp_assay.chipset_type, gene_exp_assay.annotation_set, gene_exp_assay.norm_method, gene_exp_assay.file_type
-   FROM orbit.gene_exp_assay
-  WHERE (gene_exp_assay.exp_assay_id IN ( SELECT gene_exp_scores.exp_assay_id
-           FROM orbit.gene_exp_scores
-          WHERE gene_exp_scores.study_id::text = '64407564MMY3009'::text
-          GROUP BY gene_exp_scores.exp_assay_id));
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.gene_exp_scores
+AS SELECT gene_exp_scores.exp_assay_id, gene_exp_scores.study_id, gene_exp_scores.subject_id, gene_exp_scores.features, gene_exp_scores.score
+   FROM orbit.gene_exp_scores
+  WHERE gene_exp_scores.study_id::text = '64407564MMY3009'::text;
