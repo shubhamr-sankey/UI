@@ -1,1 +1,21 @@
-=
+-- orbit.gene_exp_assay definition
+
+-- Drop table
+
+-- DROP TABLE orbit.gene_exp_assay;
+
+--DROP TABLE orbit.gene_exp_assay;
+CREATE TABLE IF NOT EXISTS orbit.gene_exp_assay
+(
+	vendor_id INTEGER   ENCODE az64
+	,exp_assay_id INTEGER   ENCODE az64
+	,exp_assay_type VARCHAR(200)   ENCODE lzo
+	,chipset VARCHAR(200)   ENCODE lzo
+	,chipset_type VARCHAR(200)   ENCODE lzo
+	,annotation_set VARCHAR(200)   ENCODE lzo
+	,norm_method VARCHAR(200)   ENCODE lzo
+	,file_type VARCHAR(200)   ENCODE lzo
+)
+DISTSTYLE AUTO
+;
+ALTER TABLE orbit.gene_exp_assay owner to orbit_sa;
