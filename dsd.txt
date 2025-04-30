@@ -1,12 +1,58 @@
--- orbit_64407564mmy3009.shipping_error_vw source
+-- orbit_64407564mmy3009.sample_inventory_vw source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.shipping_error_vw
-AS SELECT DISTINCT s.specimen_id, s.accession_number, s.study_subject, s.study_id, s.subject_id, s.pre_screening_id, s.visit_id, s.vendor_id, s.specimen_class, s.specimen_type, s.storage_location, s.storage_state, s.storage_temperature, s.vendor_specimen_id, s.vendor_subject_id, s.vendor_study_id, s.site_specimen_id, s.specimen_condition, s.specimen_extract_location, s.specimen_collection_date, s.specimen_received_date, s.vendor_specimen_type, s.specimen_status, s.specimen_accession_date, s.specimen_reporting_date, s.repeat_status, s.repeat_times, s.number_of_slides, s.number_of_slides_needed, s.reason_qualified_or_failed, s.sample_pass_fail_status, s.run_id, s.composite_primary_key, s.row_id, t.site_id, t.site_name, t.investigator_name, t.site_city, t.site_state, t.site_postcode, t.site_country_code, t.site_country_name, 
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.sample_inventory_vw
+AS SELECT DISTINCT COALESCE("right"(ss.subject_id::text, 11), "right"(sp.subject_id::text, 11)) AS subject_id, ss.study_id, ss.study_arm, ss.cohort, ss.study_subject_status, ss.date_enrollment, ss.date_termination, ss.date_treat_termination, ss.date_screening, ss.date_screen_failure, s.site_id, s.site_name, s.site_country_name, s.site_country_code, sp.accession_number, sp.visit_id, v.vendor_id, v.vendor_name, sp.specimen_class, sp.specimen_type, sp.storage_location, sp.storage_state, sp.vendor_specimen_id, sp.specimen_condition, sp.specimen_collection_date, sp.specimen_received_date, date_diff('day'::text, sp.specimen_collection_date, sp.specimen_received_date) - date_diff('week'::text, sp.specimen_collection_date, sp.specimen_received_date) * 2 - 
         CASE
-            WHEN lower(s.specimen_class::text) ~~ '%re-receipt%'::text THEN 'Labcorp Re-Receipt'::text
-            ELSE 'Incorrect Destination (Labcorp)'::text
-        END AS issue_type
-   FROM orbit_64407564mmy3009.specimen s
-   JOIN orbit_64407564mmy3009.study_subject ss ON s.subject_id::text = ss.subject_id::text
-   LEFT JOIN orbit_64407564mmy3009.site t ON ss.site_id::text = t.site_id::text
-  WHERE (lower(s.specimen_class::text) ~~ '%wb%'::text OR lower(s.specimen_class::text) ~~ '%bma%'::text) AND lower(s.specimen_class::text) ~~ '%immunophenotyping%'::text;
+            WHEN pgdate_part('dow'::text, sp.specimen_collection_date) = 0::double precision THEN 1
+            ELSE 0
+        END - 
+        CASE
+            WHEN pgdate_part('dow'::text, sp.specimen_received_date) = 6::double precision THEN 1
+            ELSE 0
+        END AS bd_collect_received, sp.vendor_specimen_type, sp.specimen_status, sp.specimen_accession_date, sp.number_of_slides, sp.specimen_id, a.soa, a.sm_code
+   FROM orbit_64407564mmy3009.study_subject ss
+   FULL JOIN ( SELECT specimen.specimen_id, specimen.accession_number, specimen.study_subject, specimen.study_id, specimen.subject_id, specimen.pre_screening_id, specimen.visit_id, specimen.vendor_id, specimen.specimen_class, specimen.specimen_type, specimen.storage_location, specimen.storage_state, specimen.storage_temperature, specimen.vendor_specimen_id, specimen.vendor_subject_id, specimen.vendor_study_id, specimen.site_specimen_id, specimen.specimen_condition, specimen.specimen_extract_location, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.vendor_specimen_type, specimen.specimen_status, specimen.specimen_accession_date, specimen.specimen_reporting_date, specimen.repeat_status, specimen.repeat_times, specimen.number_of_slides, specimen.number_of_slides_needed, specimen.reason_qualified_or_failed, specimen.sample_pass_fail_status, specimen.run_id, specimen.composite_primary_key, specimen.row_id
+           FROM orbit_64407564mmy3009.specimen) sp ON "right"(ss.subject_id::text, 11) = "right"(sp.subject_id::text, 11)
+   JOIN ( SELECT DISTINCT c.vendor, sp.vendor_specimen_type, 
+           CASE
+               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN "substring"(sp.vendor_specimen_type::text, 1, 4)
+               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN "substring"(sp.vendor_specimen_type::text, 1, 4)
+               WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN "substring"(sp.specimen_class::text, 1, 6)
+               WHEN sp.vendor_id = 21 THEN sp.specimen_class::text
+               ELSE NULL::text
+           END AS sm_code, 
+           CASE
+               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN COALESCE(c.report_value, "substring"(sp.vendor_specimen_type::text, 1, 4)::character varying)
+               WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN COALESCE(c.report_value, "substring"(sp.vendor_specimen_type::text, 1, 4)::character varying)
+               WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN COALESCE(c.report_value, "substring"(sp.specimen_class::text, 1, 6)::character varying)
+               WHEN sp.vendor_id = 21 THEN initcap(sp.specimen_type::text)::character varying
+               ELSE NULL::character varying
+           END AS soa
+      FROM orbit_64407564mmy3009.specimen sp
+   JOIN ( SELECT codes_of_interest.study_id, codes_of_interest.value_type, codes_of_interest.value, codes_of_interest.vendor, codes_of_interest.report_value_type, codes_of_interest.report_value
+              FROM orbit_64407564mmy3009.codes_of_interest
+             WHERE codes_of_interest.value_type::text = 'sm_code'::text) c ON "substring"(sp.vendor_specimen_type::text, 1, 4) = 
+      CASE
+          WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'SM%'::text THEN c.value
+          WHEN sp.vendor_id = 3 AND sp.vendor_specimen_type::text ~~ 'HM%'::text THEN c.value
+          ELSE NULL::character varying
+      END::text OR "substring"(sp.specimen_class::text, 1, 6) = 
+      CASE
+          WHEN sp.vendor_id = 3 AND sp.specimen_class::text ~~ 'TBO%'::text THEN c.value
+          ELSE NULL::character varying
+      END::text OR sp.vendor_id::text = 
+      CASE
+          WHEN sp.vendor_id = 21 THEN c.vendor
+          ELSE NULL::character varying
+      END::text) a ON sp.vendor_specimen_type::text = 
+CASE
+  WHEN sp.vendor_id = 3 THEN a.vendor_specimen_type
+  ELSE NULL::character varying
+END::text OR sp.vendor_id::text = a.vendor::text AND sp.specimen_class::text = a.sm_code OR sp.specimen_type::text = 
+CASE
+    WHEN sp.vendor_id = 21 AND sp.specimen_class IS NULL THEN upper(a.soa::text)
+    ELSE NULL::text
+END
+   LEFT JOIN orbit_64407564mmy3009.study_site sst ON ss.site_id::text = sst.site_id::text AND ss.study_id::text = sst.study_id::text
+   LEFT JOIN orbit_64407564mmy3009.site s ON ss.site_id::text = s.site_id::text AND ss.study_id::text = s.study_id::text AND sst.site_country::text = s.site_country_code::text
+   LEFT JOIN orbit_64407564mmy3009.vendor v ON sp.vendor_id = v.vendor_id;
