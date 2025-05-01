@@ -1,8 +1,1 @@
--- orbit_64407564mmy3009.unstructured_data_lookup source
-
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.unstructured_data_lookup
-AS SELECT DISTINCT udl.file_name, udl.mapping_attribute, udl.source_file_location, udl.study_id, spec.specimen_id, udl.publish_file_location, udl.vendor, udl.data_type, udl.time_of_ingestion, sub.subject_id, udl.file_size, udl.source_modified_timestamp
-   FROM orbit.unstructured_data_lookup udl
-   LEFT JOIN orbit.unstructured_data_specimen spec ON btrim(lower(udl.source_file_location::text)) = btrim(lower(spec.source_file_location::text)) AND btrim(lower(udl.publish_file_location::text)) = btrim(lower(spec.publish_file_location::text)) AND (udl.source_modified_timestamp::text = spec.source_modified_timestamp::text OR udl.source_modified_timestamp IS NULL AND spec.source_modified_timestamp IS NULL)
-   LEFT JOIN orbit.unstructured_data_subject sub ON btrim(lower(udl.source_file_location::text)) = btrim(lower(sub.source_file_location::text)) AND btrim(lower(udl.publish_file_location::text)) = btrim(lower(sub.publish_file_location::text)) AND (udl.source_modified_timestamp::text = sub.source_modified_timestamp::text OR udl.source_modified_timestamp IS NULL AND sub.source_modified_timestamp IS NULL)
-  WHERE udl.study_id::text = '64407564MMY3009'::text;
+q
