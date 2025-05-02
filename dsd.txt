@@ -1,1 +1,9 @@
- WHEN asv.visit_oid::text = 'C1D1'::text THEN date(rand.visit_date_actl + 7::double precision * '1 day'::interval)
+ ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" + asv.visit_window)::double precision * '1 day'::interval)
+        END AS expected_visit_max, (
+        CASE
+            WHEN asv.visit_oid::text = 'C1D1'::text THEN rand.visit_date_actl
+            ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" - asv.visit_window)::double precision * '1 day'::interval)
+        END::text || ' to '::text) || 
+        CASE
+            WHEN asv.visit_oid::text = 'C1D1'::text THEN date(rand.visit_date_actl + 7::double precision * '1 day'::interval)
+            ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" + asv.visit_window)::double precision * '1 day'::interval)
