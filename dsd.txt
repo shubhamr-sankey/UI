@@ -1,1 +1,1 @@
-=
+WHEN asv.sm_code::text ~~ '%SM13%'::text OR asv.labcorp_pvc::text = 'BMAMRDSLID'::text THEN 'N'::character varying
