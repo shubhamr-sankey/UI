@@ -1,70 +1,73 @@
-CASE
-            CASE
-    WHEN asv.visit_oid = 'C1D1' THEN TO_VARCHAR(rand.visit_date_actl)
-    ELSE TO_VARCHAR(
-        DATEADD(
-            day,
-            (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day - asv.visit_window),
-            lsv.actual_visit_date
-        )
-    )
-END || ' to ' || 
-CASE
-    WHEN asv.visit_oid = 'C1D1' THEN TO_VARCHAR(DATEADD(day, 7, rand.visit_date_actl))
-    ELSE TO_VARCHAR(
-        DATEADD(
-            day,
-            (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day + asv.visit_window),
-            lsv.actual_visit_date
-        )
-    )
-END ,
-
-CASE
-    WHEN asv.actual_visit_date IS NOT NULL THEN 'Y'
-    ELSE 'N'
-END  data_status_edc_rave,
-
-CASE
-    WHEN asv.specimen_id IS NOT NULL THEN 'Y'
-    ELSE 'N'
-END AS data_status_labcorp,
-
-CASE
-    WHEN lsv.actual_visit_date < 
-         CASE
-             WHEN asv.visit_oid = 'C1D1' THEN rand.visit_date_actl
-             ELSE DATEADD(
-                 day,
-                 (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day - asv.visit_window),
-                 lsv.actual_visit_date
-             )
-         END
-         AND
-         CASE
-             WHEN asv.visit_oid = 'C1D1' THEN DATEADD(day, 7, rand.visit_date_actl)
-             ELSE DATEADD(
-                 day,
-                 (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day + asv.visit_window),
-                 lsv.actual_visit_date
-             )
-         END
-    THEN 'Y'
-    ELSE 'N'
-END AS visit_in_expected_window
-
-            END < 'now'::text::date THEN 'Y'::text
-            WHEN lsv.actual_visit_date < 'now'::text::date THEN 'N'::text
-            WHEN asv.sm_code::text ~~ '%SM13%'::text OR asv.labcorp_pvc::text = 'BMAMRDSLID'::text THEN 'N'::text
-            ELSE NULL::text
-        END AS pot_missing, 
-        CASE
-            WHEN asv.sm_code::text ~~ '%SM13%'::text OR asv.labcorp_pvc::text = 'BMAMRDSLID'::text THEN 'N'::text
-            WHEN asv.not_mapped::text = 'Y'::text OR 
-            CASE
-                WHEN asv.specimen_id IS NOT NULL THEN 'Y'::text
-                ELSE 'N'::text
-            END = 'N'::text THEN 'Y'::text
-            ELSE 'N'::text
-        END AS review_item, md5((((((((asv.protocol_id::text || asv.site_id::text) || asv.subject_id::text) || COALESCE(asv.labcorp_pvc, ''::character varying)::text) || COALESCE(asv.visit_name, ''::character varying)::text) || COALESCE(asv.container_number, 0)::text) || COALESCE(asv.specimen_id, ''::character varying)::text) || COALESCE(asv.sm_description, ''::character varying)::text) || COALESCE(asv.visit_id, ''::character varying)::text) AS row_id
-   FROM ( SELECT study.therapeutic_area AS ta, study_subject.study_id AS protocol_id, study_subject.subject_id, study_subject.study_subject_status AS subject_status, study_subject.study_arm, site.site_country_name AS country, site.site_name, site.investigator_name AS pi_name, es.cohort, COALESCE(es.labcorp_pvc, rs.visit_id::character varying) AS labcorp_pvc, COALESCE(ev.visit_oid, rv.visit_oid) AS visit_oid, es.label_line_1, COALESCE(es.sm_code, rs.sm_code) AS sm_code, COALESCE(es.sm_description, rs.sm_description) AS sm_description, rs.accession_number, COALESCE(es.container_number, rs.container_number) AS container_number, rs.receipt_temperature, rs.shipping_datetime, rs.shipping_destination, rs."sample_type", rs.specimen_collection_date AS collection_datetime, rv.visit_date_actl AS actual_visit_date, study_subject.site_id, ev.visit_window, es.aliquot, rs.specimen_id, rs.latest_modified_time, rv.visit_name AS visit_id, es.mandatory, NULL::"unknown" AS sample_manual_flag, COALESCE(ev."cycle", rv."cycle") AS "cycle", COALESCE(ev."day", rv."day") AS "day", 
+ FROM ( SELECT study.therapeutic_area AS ta, study_subject.study_id AS protocol_id, study_subject.subject_id, study_subject.study_subject_status AS subject_status, study_subject.study_arm, site.site_country_name AS country, site.site_name, site.investigator_name AS pi_name, es.cohort, COALESCE(es.labcorp_pvc, rs.visit_id::character varying) AS labcorp_pvc, COALESCE(ev.visit_oid, rv.visit_oid) AS visit_oid, es.label_line_1, COALESCE(es.sm_code, rs.sm_code) AS sm_code, COALESCE(es.sm_description, rs.sm_description) AS sm_description, rs.accession_number, COALESCE(es.container_number, rs.container_number) AS container_number, rs.receipt_temperature, rs.shipping_datetime, rs.shipping_destination, rs."sample_type", rs.specimen_collection_date AS collection_datetime, rv.visit_date_actl AS actual_visit_date, study_subject.site_id, ev.visit_window, es.aliquot, rs.specimen_id, rs.latest_modified_time, rv.visit_name AS visit_id, es.mandatory, NULL::"unknown" AS sample_manual_flag, COALESCE(ev."cycle", rv."cycle") AS "cycle", COALESCE(ev."day", rv."day") AS "day", 
+                CASE
+                    WHEN ev.cc_customized = true THEN (COALESCE(ev.labcorp_pvc_description, rv.visit_name)::text || COALESCE(' - '::text || ev.visit_name::text, ''::text))::character varying
+                    ELSE COALESCE(ev.labcorp_pvc_description, rv.visit_name)
+                END AS visit_name, 
+                CASE
+                    WHEN es.container_number IS NULL AND rs.container_number IS NOT NULL THEN 'Y'::text
+                    ELSE 'N'::text
+                END::character varying AS not_mapped
+           FROM ( SELECT specimen.specimen_collection_date, specimen.specimen_id, specimen.specimen_status, specimen.accession_number, specimen.vendor_specimen_type AS sm_code, specimen.specimen_type AS "sample_type", specimen.specimen_class AS sm_description, specimen.specimen_condition AS receipt_temperature, specimen_event.event_destination AS shipping_destination, specimen_event.event_start_date AS shipping_datetime, row_source.latest_modified_time, split_part(specimen.specimen_id::text, '-'::text, 2)::integer AS container_number, "replace"(specimen.subject_id::text, 'AL8'::text, ''::text) AS subject_id, split_part(specimen.visit_id::text, '|'::text, 1) AS visit_id
+                   FROM orbit_64407564mmy3009.specimen specimen
+              JOIN orbit_64407564mmy3009.row_source_data_study_vw row_source ON row_source.row_id::text = specimen.row_id::text AND row_source.dataset_name::text = 'Labcorp_ST_64407564MMY3009'::text AND row_source.table_name::text = 'specimen'::text
+         LEFT JOIN orbit_64407564mmy3009.specimen_event specimen_event ON specimen.specimen_id::text = specimen_event.specimen_id::text AND specimen_event.event_category::text = 'Sample Shipping'::text) rs
+      FULL JOIN ( SELECT evs.subject_id, es.labcorp_pvc, es.container_number, es.sm_code, es.sm_description, es.label_line_1, es.aliquot, es.mandatory, es.cohort
+                   FROM (( SELECT study_subject.subject_id, ev."region", ev.study_arm, ev.labcorp_pvc, ev.visit_oid, ev.labcorp_pvc_description, ev.visit_name, ev.visit_window, ev.visit_requirements, ev.amendment, ev."cycle", ev."day", ev.cc_customized
+                           FROM orbit_64407564mmy3009.study_subject study_subject
+                      LEFT JOIN orbit.country_region ON "left"(study_subject.subject_id::text, 2) = country_region.country::text
+                 LEFT JOIN ( SELECT DISTINCT rv.visit_oid, rv.subject_id, latest.visit_date_actl, rv.visit_name, rv."cycle", rv."day"
+                              FROM ( SELECT DISTINCT v.visit_oid, v.subject_id, v.visit_date_actl, v.visit_name, 
+                                           CASE
+                                               WHEN regexp_substr(v.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                               ELSE regexp_substr(v.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text)
+                                           END::integer AS "cycle", 
+                                           CASE
+                                               WHEN regexp_substr(v.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                               ELSE regexp_substr(v.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text)
+                                           END::integer AS "day"
+                                      FROM orbit_64407564mmy3009.visit v
+                                 JOIN orbit_64407564mmy3009.row_source_data_study_vw rsds ON v.row_id::text = rsds.row_id::text
+                                WHERE rsds.dataset_name::text = 'edcom_visit'::text AND v.visit_date_actl IS NOT NULL AND v.visit_oid::text <> 'DEVALVIS'::text) rv
+                         JOIN ( SELECT rv.subject_id, "max"(rv.visit_date_actl) AS visit_date_actl
+                                      FROM ( SELECT DISTINCT v.visit_oid, v.subject_id, v.visit_date_actl, v.visit_name, 
+                                                   CASE
+                                                       WHEN regexp_substr(v.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                                       ELSE regexp_substr(v.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text)
+                                                   END::integer AS "cycle", 
+                                                   CASE
+                                                       WHEN regexp_substr(v.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                                       ELSE regexp_substr(v.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text)
+                                                   END::integer AS "day"
+                                              FROM orbit_64407564mmy3009.visit v
+                                         JOIN orbit_64407564mmy3009.row_source_data_study_vw rsds ON v.row_id::text = rsds.row_id::text
+                                        WHERE rsds.dataset_name::text = 'edcom_visit'::text AND v.visit_date_actl IS NOT NULL AND v.visit_oid::text <> 'DEVALVIS'::text) rv
+                                 LEFT JOIN ( SELECT site_amendment.site_id, "max"(site_amendment.date_updated) AS date_updated
+                                              FROM orbit_64407564mmy3009.site_amendment
+                                             WHERE site_amendment.new_amendment::text = 'GlobalProtocolAmendment2'::text
+                                             GROUP BY site_amendment.site_id) sad ON "right"(sad.site_id::text, 7) = "left"(rv.subject_id::text, 7)
+                                WHERE rv."cycle" IS NOT NULL AND rv.visit_date_actl <= sad.date_updated
+                                GROUP BY rv.subject_id) latest ON rv.subject_id::text = latest.subject_id::text AND rv.visit_date_actl = latest.visit_date_actl
+                        WHERE rv."cycle" IS NOT NULL) lav ON lav.subject_id::text = study_subject.subject_id::text
+            JOIN ( SELECT expected_visits.labcorp_pvc, expected_visits.labcorp_pvc_description, expected_visits."region", expected_visits.study_arm, expected_visits.amendment, expected_visits.visit_oid, expected_visits.visit_name, expected_visits.visit_window, expected_visits.visit_requirements, expected_visits.cc_customized, expected_visits."cycle", expected_visits."day"
+                         FROM ( SELECT ev.labcorp_pvc, ev.labcorp_pvc_description, ev."region", ev.study_arm, ev.amendment, ev.visit_oid, ev.visit_name, ev.visit_window, ev.visit_requirements, ev.cc_customized, 
+                                      CASE
+                                          WHEN regexp_substr(ev.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                          ELSE regexp_substr(ev.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text)
+                                      END::integer AS "cycle", 
+                                      CASE
+                                          WHEN regexp_substr(ev.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                          ELSE regexp_substr(ev.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text)
+                                      END::integer AS "day"
+                                 FROM orbit_64407564mmy3009.expected_visits ev) expected_visits
+                        WHERE expected_visits.amendment = 2 AND NOT ((expected_visits.labcorp_pvc, expected_visits."region", expected_visits.study_arm) IN ( SELECT DISTINCT expected_visits.labcorp_pvc, expected_visits."region", expected_visits.study_arm
+                                 FROM ( SELECT ev.labcorp_pvc, ev.labcorp_pvc_description, ev."region", ev.study_arm, ev.amendment, ev.visit_oid, ev.visit_name, ev.visit_window, ev.visit_requirements, ev.cc_customized, 
+                                              CASE
+                                                  WHEN regexp_substr(ev.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                                  ELSE regexp_substr(ev.visit_oid::text, 'C(\\d+)D\\d+'::text, 1, 1, 'ie'::text)
+                                              END::integer AS "cycle", 
+                                              CASE
+                                                  WHEN regexp_substr(ev.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text) = ''::text THEN NULL::text
+                                                  ELSE regexp_substr(ev.visit_oid::text, 'C\\d+D(\\d+)'::text, 1, 1, 'ie'::text)
+                                              END::integer AS "day"
+                                         FROM orbit_64407564mmy3009.expected_visits ev) expected_visits
+                                WHERE expected_visits.amendment = 1))
