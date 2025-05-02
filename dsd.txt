@@ -1,24 +1,70 @@
-WHEN asv.visit_oid::text = 'C1D1'::text THEN rand.visit_date_actl
-            ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" - asv.visit_window)::double precision * '1 day'::interval)
-        END::text || ' to '::text) || 
-        CASE
-            WHEN asv.visit_oid::text = 'C1D1'::text THEN date(rand.visit_date_actl + 7::double precision * '1 day'::interval)
-            ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" + asv.visit_window)::double precision * '1 day'::interval)
-        END::text AS expected_visit_window, 
-        CASE
-            WHEN asv.actual_visit_date IS NOT NULL THEN 'Y'::text
-            ELSE 'N'::text
-        END AS data_status_edc_rave, 
-        CASE
-            WHEN asv.specimen_id IS NOT NULL THEN 'Y'::text
-            ELSE 'N'::text
-        END AS data_status_labcorp, 
-        CASE
-            WHEN lsv.actual_visit_date < 
+CASE
             CASE
-                WHEN asv.visit_oid::text = 'C1D1'::text THEN rand.visit_date_actl
-                ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" - asv.visit_window)::double precision * '1 day'::interval)
-            END AND 
+    WHEN asv.visit_oid = 'C1D1' THEN TO_VARCHAR(rand.visit_date_actl)
+    ELSE TO_VARCHAR(
+        DATEADD(
+            day,
+            (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day - asv.visit_window),
+            lsv.actual_visit_date
+        )
+    )
+END || ' to ' || 
+CASE
+    WHEN asv.visit_oid = 'C1D1' THEN TO_VARCHAR(DATEADD(day, 7, rand.visit_date_actl))
+    ELSE TO_VARCHAR(
+        DATEADD(
+            day,
+            (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day + asv.visit_window),
+            lsv.actual_visit_date
+        )
+    )
+END ,
+
+CASE
+    WHEN asv.actual_visit_date IS NOT NULL THEN 'Y'
+    ELSE 'N'
+END  data_status_edc_rave,
+
+CASE
+    WHEN asv.specimen_id IS NOT NULL THEN 'Y'
+    ELSE 'N'
+END AS data_status_labcorp,
+
+CASE
+    WHEN lsv.actual_visit_date < 
+         CASE
+             WHEN asv.visit_oid = 'C1D1' THEN rand.visit_date_actl
+             ELSE DATEADD(
+                 day,
+                 (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day - asv.visit_window),
+                 lsv.actual_visit_date
+             )
+         END
+         AND
+         CASE
+             WHEN asv.visit_oid = 'C1D1' THEN DATEADD(day, 7, rand.visit_date_actl)
+             ELSE DATEADD(
+                 day,
+                 (acl.cycle_length * (asv.cycle - lsv.cycle)) + (asv.day - lsv.day + asv.visit_window),
+                 lsv.actual_visit_date
+             )
+         END
+    THEN 'Y'
+    ELSE 'N'
+END AS visit_in_expected_window
+
+            END < 'now'::text::date THEN 'Y'::text
+            WHEN lsv.actual_visit_date < 'now'::text::date THEN 'N'::text
+            WHEN asv.sm_code::text ~~ '%SM13%'::text OR asv.labcorp_pvc::text = 'BMAMRDSLID'::text THEN 'N'::text
+            ELSE NULL::text
+        END AS pot_missing, 
+        CASE
+            WHEN asv.sm_code::text ~~ '%SM13%'::text OR asv.labcorp_pvc::text = 'BMAMRDSLID'::text THEN 'N'::text
+            WHEN asv.not_mapped::text = 'Y'::text OR 
             CASE
-                WHEN asv.visit_oid::text = 'C1D1'::text THEN date(rand.visit_date_actl + 7::double precision * '1 day'::interval)
-                ELSE date(lsv.actual_visit_date + (acl.cycle_length * (asv."cycle" - lsv."cycle") + asv."day" - lsv."day" + asv.visit_window)::double precision * '1 day'::interval)
+                WHEN asv.specimen_id IS NOT NULL THEN 'Y'::text
+                ELSE 'N'::text
+            END = 'N'::text THEN 'Y'::text
+            ELSE 'N'::text
+        END AS review_item, md5((((((((asv.protocol_id::text || asv.site_id::text) || asv.subject_id::text) || COALESCE(asv.labcorp_pvc, ''::character varying)::text) || COALESCE(asv.visit_name, ''::character varying)::text) || COALESCE(asv.container_number, 0)::text) || COALESCE(asv.specimen_id, ''::character varying)::text) || COALESCE(asv.sm_description, ''::character varying)::text) || COALESCE(asv.visit_id, ''::character varying)::text) AS row_id
+   FROM ( SELECT study.therapeutic_area AS ta, study_subject.study_id AS protocol_id, study_subject.subject_id, study_subject.study_subject_status AS subject_status, study_subject.study_arm, site.site_country_name AS country, site.site_name, site.investigator_name AS pi_name, es.cohort, COALESCE(es.labcorp_pvc, rs.visit_id::character varying) AS labcorp_pvc, COALESCE(ev.visit_oid, rv.visit_oid) AS visit_oid, es.label_line_1, COALESCE(es.sm_code, rs.sm_code) AS sm_code, COALESCE(es.sm_description, rs.sm_description) AS sm_description, rs.accession_number, COALESCE(es.container_number, rs.container_number) AS container_number, rs.receipt_temperature, rs.shipping_datetime, rs.shipping_destination, rs."sample_type", rs.specimen_collection_date AS collection_datetime, rv.visit_date_actl AS actual_visit_date, study_subject.site_id, ev.visit_window, es.aliquot, rs.specimen_id, rs.latest_modified_time, rv.visit_name AS visit_id, es.mandatory, NULL::"unknown" AS sample_manual_flag, COALESCE(ev."cycle", rv."cycle") AS "cycle", COALESCE(ev."day", rv."day") AS "day", 
