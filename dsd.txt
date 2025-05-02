@@ -1,1 +1,15 @@
-=
+-- orbit_64407564mmy3009.row_source_data_study_vw source
+
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.row_source_data_study_vw
+AS SELECT dm.table_name, 
+        CASE
+            WHEN dm.dataset_name::text = ANY (ARRAY['iaware_orbit_site'::text, 'iaware_orbit_study'::text, 'iaware_orbit_study_site'::text, 'iaware_orbit_study_subject'::text, 'iaware_orbit_visit'::text, 'covance_protocol'::text, 'covance_investigator'::text, 'covance_patient'::text, 'covance_group'::text, 'covance_lab_test'::text, 'covance_lab_result'::text, 'covance_container'::text, 'fmi_query_log'::text, 'fmi_psst'::text, 'fmi_oapl'::text, 'fmi_ospl'::text, 'fmi_biomarker_mapping'::text, 'fmi_lsst'::text, 'invitae_looker'::text, 'cell_carta_sample_inventory'::text, 'cell_carta_image_assay_results'::text, 'iwrs_subject_summary'::text, 'edcom_visit'::text]) THEN 'Legacy Dataset - Stitched'::character varying
+            WHEN dm.dataset_name::text = ANY (ARRAY['analyte'::text, 'analyte_characterization'::text, 'genes'::text, 'genomic_assay'::text, 'site'::text, 'specimen_genomic_assay'::text, 'analyte_measurement'::text, 'genomic_variant'::text, 'specimen'::text, 'specimen_event'::text, 'specimen_biomarker_pgx_finding'::text, 'specimen_pgx_finding'::text, 'specimen_test'::text, 'study'::text, 'study_site'::text, 'study_subject'::text, 'study_subject_consent'::text, 'study_subject_history'::text, 'subject_drug_treatment'::text, 'subject_test'::text, 'subject_test_response'::text, 'visit'::text, 'specimen_lineage'::text, 'vendor'::text, 'vendor_assay_genomic'::text, 'genomic_variant_type'::text]) THEN 'ORBIT Redshift'::character varying
+            ELSE meta.dataset_type
+        END AS dataset_type, dm.row_id, dm.study_id, dm.primary_key, dm.dataset_name, meta.file_name, meta.s3_source_location, meta.source_modified_time AS latest_modified_time
+   FROM ( SELECT st.table_name, st.row_id, st.study_id, st.primary_key, COALESCE(info.dataset_name, st.dataset_info) AS dataset_name
+           FROM orbit_64407564mmy3009.row_source_data_study st
+      LEFT JOIN orbit.dataset_batch_id_mapping_info info ON btrim(lower(st.dataset_info::text)) = btrim(lower(info.batch_id::text))) dm
+   LEFT JOIN ( SELECT source_data_metadata.dataset_type, source_data_metadata.dataset_name, source_data_metadata.file_name, source_data_metadata.s3_source_location, source_data_metadata.source_modified_time, source_data_metadata.study_id, source_data_metadata.table_type
+           FROM orbit.source_data_metadata
+          WHERE source_data_metadata.study_id::text = '64407564MMY3009'::text OR source_data_metadata.study_id::text = ''::text) meta ON btrim(lower(dm.dataset_name::text)) = btrim(lower(meta.dataset_name::text));
