@@ -1,85 +1,113 @@
--- orbit_64407564mmy3009.igg_measurement_lookup source
+-- orbit_64407564mmy3009.collection_tracking_vw source
 
-CREATE OR REPLACE VIEW orbit_64407564mmy3009.igg_measurement_lookup
-AS SELECT ((((((((study_subject.study_id::text || '|'::text) || study_subject.study_id::text) || '|'::text) || study_subject.subject_id::text) || COALESCE(trunc(igg_mg_dl.specimen_collection_date)::character varying, ''::character varying)::text) || 
+CREATE OR REPLACE VIEW orbit_64407564mmy3009.collection_tracking_vw
+AS SELECT DISTINCT ss.subject_id, ss.site_id, s.site_country_name, ss.date_screening, ss.date_screen_failure, ss.date_enrollment, ss.date_termination, ss.study_subject_status, ss.study_arm, ss.study_part, NULL::text AS cohort, v.visit_date_exp, regexp_replace(bps.visit_window::text, '[^0-9]'::text, ''::text)::character varying AS visit_window_days, 
         CASE
-            WHEN igg_mg_dl.specimen_collection_date IS NOT NULL THEN '|'::text
-            ELSE ''::text
-        END) || COALESCE(igg_mg_dl.test_result_std_value, ''::character varying)::text) || 
+            WHEN bps.visit_window::text ~~ '%-%'::text THEN v.visit_date_exp - regexp_replace(bps.visit_window::text, '[^0-9]'::text, ''::text)::integer
+            ELSE v.visit_date_exp
+        END AS exp_visit_window_min, 
         CASE
-            WHEN igg_mg_dl.test_result_std_value IS NOT NULL THEN '|'::text
-            ELSE ''::text
-        END) || COALESCE(igg_mg_dl.visit_id, ''::character varying)::text AS unique_key, study_subject.study_id, study_subject.subject_id, study_subject.site_id, igg_mg_dl.specimen_collection_date AS igg_collection_date, igg_mg_dl.test_result_std_value_char AS igg_mg_dl, igg_mg_dl.visit_id
-   FROM orbit_64407564mmy3009.study_subject study_subject
-   LEFT JOIN ( SELECT DISTINCT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen.visit_id, specimen_test.test_result_std_value, 
-                CASE
-                    WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                    ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                END AS test_result_std_value_numeric_mg, 
-                CASE
-                    WHEN 
-                    CASE
-                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                    END > spep.spep_mg_dl::double precision THEN 
-                    CASE
-                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                    END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
-                    ELSE 
-                    CASE
-                        WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                        ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                    END
-                END AS calculated_igg_value, 
-                CASE
-                    WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN (regexp_substr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) || round(
-                    CASE
-                        WHEN 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END > spep.spep_mg_dl::double precision THEN 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
-                        ELSE 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END
-                    END, 2::numeric)::character varying(255)::text)::character varying
-                    ELSE 
-                    CASE
-                        WHEN 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END > spep.spep_mg_dl::double precision THEN 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END - COALESCE(spep.spep_mg_dl, 0::numeric)::double precision
-                        ELSE 
-                        CASE
-                            WHEN regexp_instr(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text) > 0 THEN regexp_replace(specimen_test.test_result_std_value::text, '[^[:digit:].]'::text)::double precision * 100::double precision
-                            ELSE specimen_test.test_result_std_value::double precision * 100::double precision
-                        END
-                    END::character varying(255)
-                END AS test_result_std_value_char, 
-                CASE
-                    WHEN spep.spep_mg_dl IS NULL OR spep.spep_mg_dl = 0::numeric THEN 0
-                    ELSE 1
-                END AS igg_calculation_flag
-           FROM orbit_64407564mmy3009.specimen specimen
-      LEFT JOIN orbit_64407564mmy3009.specimen_test specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
-   LEFT JOIN ( SELECT DISTINCT spep_kappa_lambda.subject_id, spep_kappa_lambda.study_id, spep_kappa_lambda.accession_number, spep_kappa_lambda.specimen_collection_date, specimen_test.test_name, specimen_test.test_result_orig_value_numeric::numeric * 100::numeric AS spep_mg_dl
-              FROM ( SELECT specimen.subject_id, specimen.study_id, specimen.specimen_id, specimen.accession_number, specimen.specimen_collection_date, specimen_test.test_name, specimen_test.test_result_orig_value_numeric
-                      FROM orbit_64407564mmy3009.specimen
-                 LEFT JOIN orbit_64407564mmy3009.specimen_test ON specimen.specimen_id::text = specimen_test.specimen_id::text
-                WHERE specimen_test.test_name::text = 'MyeloSPE Immunofix.Impress1-CL'::text AND specimen_test.test_result_orig_value::text ~~ 'IgG%'::text) spep_kappa_lambda
-         JOIN orbit_64407564mmy3009.specimen specimen ON spep_kappa_lambda.subject_id::text = specimen.subject_id::text AND spep_kappa_lambda.accession_number::text = specimen.accession_number::text AND trunc(spep_kappa_lambda.specimen_collection_date) = trunc(specimen.specimen_collection_date)
-    JOIN orbit_64407564mmy3009.specimen_test ON spep_kappa_lambda.specimen_id::text = specimen_test.specimen_id::text
-   WHERE specimen_test.test_name::text = 'Total M-Protein, Serum-CL-QT'::text) spep ON specimen.subject_id::text = spep.subject_id::text AND specimen.accession_number::text = spep.accession_number::text AND specimen.specimen_collection_date = spep.specimen_collection_date
-  WHERE specimen.vendor_id = 3 AND specimen_test.test_category::text ~~ 'IMMUNOGLOBULIN%'::text AND specimen_test.test_name::text ~~ 'Immunoglobulin G%'::text) igg_mg_dl ON study_subject.subject_id::text = igg_mg_dl.subject_id::text;
+            WHEN bps.visit_window::text ~~ '%+%'::text THEN v.visit_date_exp + regexp_replace(bps.visit_window::text, '[^0-9]'::text, ''::text)::integer
+            ELSE v.visit_date_exp
+        END AS exp_visit_window_max, v.visit_date_actl, v.visit_oid AS v_visit_oid, sp.visit_id AS sp_visit_id, sp.specimen_collection_date, bps."region", bps.vendor_id, vd.vendor_name, bps.visit_oid AS exp_visit, bps.visit_name AS exp_visit_name, bps.arm AS exp_arm, bps.assessment_group, bps.assessment, bps.exp_specimen_type, bps.timepoint, bps.vendor_specimen_type AS exp_specimen_class, bps.specimen_visit_id, concat(concat(bps.visit_name::text, '_'::text), bps.assessment::text)::character varying AS scheduled_collection, sp.specimen_class, sp.specimen_type, sp.accession_number, sp.specimen_id, sp.specimen_received_date, sp.specimen_accession_date, sp.specimen_status, COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) AS past_visit_date, 
+        CASE
+            WHEN sp.specimen_collection_date IS NOT NULL OR sp.specimen_id IS NOT NULL THEN 'Collected'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND (COALESCE(
+            CASE
+                WHEN bps.visit_window::text ~~ '%+%'::text THEN v.visit_date_exp + regexp_replace(bps.visit_window::text, '[^0-9]'::text, ''::text)::integer
+                ELSE v.visit_date_exp
+            END, v.visit_date_exp) + 7) >= getdate() AND ss.study_subject_status::text <> 'Early Terminated'::text AND ss.study_subject_status::text <> 'Screen Failed'::text THEN 'Future Collection'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND v.visit_date_exp IS NULL AND ss.study_subject_status::text <> 'Screening'::text AND ss.study_subject_status::text <> 'Early Terminated'::text AND ss.study_subject_status::text <> 'Screen Failed'::text THEN 'Future Collection'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NOT NULL AND getdate() <= (COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) + 7::bigint) THEN 'Pending'::text
+            WHEN sp.specimen_collection_date IS NULL AND sp.specimen_id IS NULL AND getdate() > (COALESCE(
+            CASE
+                WHEN bps.visit_window::text ~~ '%+%'::text THEN v.visit_date_exp + regexp_replace(bps.visit_window::text, '[^0-9]'::text, ''::text)::integer
+                ELSE v.visit_date_exp
+            END::timestamp without time zone, v.visit_date_exp::timestamp without time zone, COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date)) + 7::bigint) THEN 'Missed Collection'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND ss.study_subject_status::text = 'Early Terminated'::text AND (v.visit_date_exp >= ss.date_termination OR v.visit_date_exp IS NULL) THEN 'Not Expected'::text
+            ELSE NULL::text
+        END::character varying AS collection_status, bps.protocol_version, bps.protocol_start_date, bps.protocol_end_date, 
+        CASE
+            WHEN (ss.study_subject_status::text = 'Screening'::text OR ss.study_subject_status::text = 'Screen Failed'::text) AND bps.visit_oid::text <> 'SCREEN'::text THEN 'remove'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NOT NULL AND COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) >= bps.protocol_start_date AND (COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) <= bps.protocol_end_date OR bps.protocol_end_date IS NULL) THEN 'keep'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND v.visit_date_exp >= bps.protocol_start_date AND (v.visit_date_exp <= bps.protocol_end_date OR bps.protocol_end_date IS NULL) THEN 'keep'::text
+            WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND v.visit_date_exp IS NULL AND bps.protocol_end_date IS NULL THEN 'keep'::text
+            ELSE 'remove'::text
+        END::character varying AS on_protocol, bps.collection_comment
+   FROM ( SELECT study_subject.study_id, study_subject.subject_id, study_subject.site_id, study_subject.date_screening, study_subject.date_screen_failure, study_subject.date_enrollment, study_subject.date_termination, study_subject.study_subject_status, study_subject.study_arm, study_subject.study_part
+           FROM orbit_64407564mmy3009.study_subject) ss
+  CROSS JOIN orbit_64407564mmy3009.biomarker_schedule bps
+   LEFT JOIN ( SELECT specimen.subject_id, specimen.visit_id, specimen.specimen_class, specimen.specimen_type, specimen.vendor_specimen_type, specimen.accession_number, specimen.specimen_id, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.specimen_accession_date, specimen.specimen_status, specimen.vendor_id, 
+           CASE
+               WHEN specimen.vendor_id = 21 AND (specimen.specimen_class::text = 'CYTOF'::text OR specimen.specimen_class::text = 'CYTOF/Molecular Markers'::text) THEN 'CYTOF, CYTOF/Molecular Markers'::character varying
+               WHEN specimen.vendor_id = 21 AND specimen.visit_id::text ~~ '%SCREENING'::text AND (specimen.specimen_class::text = 'MRD'::text OR specimen.specimen_class::text = 'ARCHIVAL'::text) THEN 'MRD, ARCHIVAL'::character varying
+               WHEN specimen.vendor_id = 21 THEN specimen.specimen_class
+               WHEN specimen.vendor_id = 3 THEN "left"(specimen.vendor_specimen_type::text, 4)::character varying
+               ELSE specimen.vendor_specimen_type
+           END AS spec_type_match, 
+           CASE
+               WHEN specimen.vendor_id = 21 THEN split_part(specimen.visit_id::text, '|'::text, 2)::character varying
+               ELSE specimen.visit_id
+           END AS visit_id_match
+      FROM orbit_64407564mmy3009.specimen) sp ON ss.subject_id::text = sp.subject_id::text AND upper(bps.specimen_visit_id::text) = upper(sp.visit_id_match::text) AND (bps.vendor_specimen_type::text = sp.spec_type_match::text OR bps.vendor_specimen_type IS NULL)
+   LEFT JOIN orbit_64407564mmy3009.study_site sst ON ss.site_id::text = sst.site_id::text AND ss.study_id::text = sst.study_id::text
+   LEFT JOIN orbit_64407564mmy3009.site s ON ss.site_id::text = s.site_id::text AND ss.study_id::text = s.study_id::text AND sst.site_country::text = s.site_country_code::text
+   LEFT JOIN orbit_64407564mmy3009.vendor vd ON bps.vendor_id::text = vd.vendor_id::text
+   LEFT JOIN (( SELECT visit.subject_id, visit.visit_name, visit.visit_oid, visit.visit_date_exp, visit.visit_date_actl, visit.visit_oid AS visit_match
+   FROM orbit_64407564mmy3009.visit
+UNION 
+ SELECT DISTINCT subject_test_response.subject_id, 
+        CASE
+            WHEN subject_test_response.subject_test_value_description::text ~~ '%Complete Response'::text THEN 'Stringent/Complete Response'::character varying
+            ELSE subject_test_response.subject_test_value_description
+        END AS visit_name, 
+        CASE
+            WHEN subject_test_response.subject_test_value::text = 'CR'::text OR subject_test_response.subject_test_value::text = 'sCR'::text THEN 'CR/sCR'::character varying
+            ELSE subject_test_response.subject_test_value
+        END AS visit_oid, NULL::date AS visit_date_exp, min(subject_test_response.subject_test_date::date)
+  OVER( 
+  PARTITION BY subject_test_response.subject_id, 
+        CASE
+            WHEN subject_test_response.subject_test_value::text = 'CR'::text OR subject_test_response.subject_test_value::text = 'sCR'::text THEN 'CR/sCR'::character varying
+            ELSE subject_test_response.subject_test_value
+        END
+  ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS visit_date_actl, 
+        CASE
+            WHEN subject_test_response.subject_test_value::text = 'CR'::text OR subject_test_response.subject_test_value::text = 'sCR'::text THEN 'CR/sCR'::character varying
+            ELSE subject_test_response.subject_test_value
+        END AS visit_match
+   FROM orbit_64407564mmy3009_outcome.subject_test_response
+  WHERE subject_test_response.subject_test_name::text = 'Disease Response'::text AND subject_test_response.subject_test_category::text = 'Evaluation of Response (IMWG Criteria)'::text AND (subject_test_response.subject_test_value::text = 'sCR'::text OR subject_test_response.subject_test_value::text = 'CR'::text OR subject_test_response.subject_test_value::text = 'PD'::text))
+UNION 
+ SELECT derived_table42.subject_id, derived_table42.visit_name, derived_table42.visit_oid, derived_table42.visit_date_exp, derived_table42.visit_date_actl, derived_table42.visit_match
+   FROM ( SELECT DISTINCT str.subject_id, v.visit_date_actl AS c1d1_date_actl, fuv.visit_oid AS visit_name, fuv.visit_oid, "substring"(fuv.visit_oid::text, 8, 2)::integer AS months_after_c1d1, date_add('month'::text, "substring"(fuv.visit_oid::text, 8, 2)::integer::bigint, v.visit_date_actl::timestamp without time zone)::date AS visit_date_exp, NULL::date AS visit_date_actl, fuv.visit_oid AS visit_match
+           FROM ( SELECT subject_test_response.subject_id
+                   FROM orbit_64407564mmy3009_outcome.subject_test_response
+                  WHERE subject_test_response.subject_test_name::text = 'Disease Response'::text AND subject_test_response.subject_test_category::text = 'Evaluation of Response (IMWG Criteria)'::text AND (subject_test_response.subject_test_value::text = 'CR'::text OR subject_test_response.subject_test_value::text = 'sCR'::text)) str
+      LEFT JOIN ( SELECT visit.subject_id, visit.visit_date_actl
+                   FROM orbit_64407564mmy3009.visit
+                  WHERE visit.visit_oid::text = 'C1D1'::text) v ON str.subject_id::text = v.subject_id::text
+  CROSS JOIN ( SELECT biomarker_schedule.visit_oid
+              FROM orbit_64407564mmy3009.biomarker_schedule
+             WHERE biomarker_schedule.visit_oid::text ~~ '%CR+%'::text) fuv) derived_table42) v ON ss.subject_id::text = v.subject_id::text AND bps.visit_oid::text = v.visit_match::text
+   LEFT JOIN ( SELECT DISTINCT specimen.subject_id, specimen.visit_id, specimen.specimen_collection_date
+   FROM orbit_64407564mmy3009.specimen) sv ON upper(bps.specimen_visit_id::text) = upper(sv.visit_id::text) AND v.subject_id::text = sv.subject_id::text
+  WHERE 
+CASE
+    WHEN (ss.study_subject_status::text = 'Screening'::text OR ss.study_subject_status::text = 'Screen Failed'::text) AND bps.visit_oid::text <> 'SCREEN'::text THEN 'remove'::text
+    WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NOT NULL AND COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) >= bps.protocol_start_date AND (COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) <= bps.protocol_end_date OR bps.protocol_end_date IS NULL) THEN 'keep'::text
+    WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND v.visit_date_exp >= bps.protocol_start_date AND (v.visit_date_exp <= bps.protocol_end_date OR bps.protocol_end_date IS NULL) THEN 'keep'::text
+    WHEN COALESCE(v.visit_date_actl::timestamp without time zone, sp.specimen_collection_date, sv.specimen_collection_date) IS NULL AND v.visit_date_exp IS NULL AND bps.protocol_end_date IS NULL THEN 'keep'::text
+    ELSE 'remove'::text
+END = 'keep'::text AND ss.study_subject_status::text <> 'Inactive'::text AND ss.study_subject_status::text <> 'Relocated Subject'::text AND (ss.subject_id::text ~~ '%CN%'::text AND bps."region"::text = 'China'::text OR ss.subject_id::text !~~ '%CN%'::text AND bps."region"::text = 'Ex-China'::text)
+UNION 
+ SELECT DISTINCT ss.subject_id, ss.site_id, s.site_country_name, ss.date_screening, ss.date_screen_failure, ss.date_enrollment, ss.date_termination, ss.study_subject_status, ss.study_arm, ss.study_part, NULL::text AS cohort, NULL::date AS visit_date_exp, NULL::text AS visit_window_days, NULL::date AS exp_visit_window_min, NULL::date AS exp_visit_window_max, NULL::date AS visit_date_actl, 'UNSHEDULED'::text AS v_visit_oid, sp.visit_id AS sp_visit_id, sp.specimen_collection_date, NULL::text AS "region", sp.vendor_id::character varying AS vendor_id, vd.vendor_name, 'UNSCHEDULED'::text AS exp_visit, 'UNSCHEDULED'::text AS exp_visit_name, NULL::text AS exp_arm, NULL::text AS assessment_group, NULL::text AS assessment, regexp_replace(sp.specimen_class::text, ' -.*| / .*|/Extra.*'::text, ''::text)::character varying AS exp_specimen_type, NULL::text AS timepoint, sp.vendor_specimen_type AS exp_specimen_class, sp.visit_id AS specimen_visit_id, NULL::text AS scheduled_collection, sp.specimen_class, sp.specimen_type, sp.accession_number, sp.specimen_id, sp.specimen_received_date, sp.specimen_accession_date, sp.specimen_status, sp.specimen_collection_date AS past_visit_date, 'Collected'::text AS collection_status, NULL::text AS protocol_version, NULL::date AS protocol_start_date, NULL::date AS protocol_end_date, 'keep'::text AS on_protocol, NULL::text AS collection_comment
+   FROM ( SELECT study_subject.study_id, study_subject.subject_id, study_subject.site_id, study_subject.date_screening, study_subject.date_screen_failure, study_subject.date_enrollment, study_subject.date_termination, study_subject.study_subject_status, study_subject.study_arm, study_subject.study_part
+           FROM orbit_64407564mmy3009.study_subject) ss
+   LEFT JOIN ( SELECT specimen.subject_id, specimen.visit_id, specimen.specimen_class, specimen.specimen_type, specimen.vendor_specimen_type, specimen.vendor_id, specimen.accession_number, specimen.specimen_id, specimen.specimen_collection_date, specimen.specimen_received_date, specimen.specimen_accession_date, specimen.specimen_status
+           FROM orbit_64407564mmy3009.specimen) sp ON ss.subject_id::text = sp.subject_id::text
+   LEFT JOIN orbit_64407564mmy3009.study_site sst ON ss.site_id::text = sst.site_id::text AND ss.study_id::text = sst.study_id::text
+   LEFT JOIN orbit_64407564mmy3009.site s ON ss.site_id::text = s.site_id::text AND ss.study_id::text = s.study_id::text AND sst.site_country::text = s.site_country_code::text
+   LEFT JOIN orbit_64407564mmy3009.vendor vd ON sp.vendor_id = vd.vendor_id
+  WHERE (upper(sp.visit_id::text) = 'UNSCHEDULED'::text OR upper(sp.visit_id::text) = 'UNSCHEDULED|UNSCHEDULED'::text) AND (sp.vendor_specimen_type::text = 'CYTOF'::text OR sp.vendor_specimen_type::text = 'ARCHIVAL'::text OR sp.vendor_specimen_type::text = 'MRD'::text OR sp.vendor_specimen_type::text = 'CYTOF/Molecular Markers'::text OR sp.vendor_specimen_type::text = 'MM FISH'::text) OR upper(sp.visit_id::text) = 'UNSCH'::text AND (sp.vendor_specimen_type::text = 'SM12'::text OR sp.vendor_specimen_type::text = 'SM13'::text)
+  ORDER BY 1, 19, 16, 12;
