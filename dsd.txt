@@ -1,1 +1,47 @@
-=
+-- orbit_64407564mmy3009.specimen definition
+
+-- Drop table
+
+-- DROP TABLE orbit_64407564mmy3009.specimen;
+
+--DROP TABLE orbit_64407564mmy3009.specimen;
+CREATE TABLE IF NOT EXISTS orbit_64407564mmy3009.specimen
+(
+	specimen_id VARCHAR(65535)   ENCODE lzo
+	,accession_number VARCHAR(65535)   ENCODE lzo
+	,study_subject VARCHAR(65535)   ENCODE lzo
+	,study_id VARCHAR(65535)   ENCODE lzo
+	,subject_id VARCHAR(65535)   ENCODE lzo
+	,pre_screening_id VARCHAR(65535)   ENCODE lzo
+	,visit_id VARCHAR(65535)   ENCODE lzo
+	,vendor_id INTEGER   ENCODE az64
+	,specimen_class VARCHAR(65535)   ENCODE lzo
+	,specimen_type VARCHAR(65535)   ENCODE lzo
+	,storage_location VARCHAR(65535)   ENCODE lzo
+	,storage_state VARCHAR(65535)   ENCODE lzo
+	,storage_temperature VARCHAR(65535)   ENCODE lzo
+	,vendor_specimen_id VARCHAR(65535)   ENCODE lzo
+	,vendor_subject_id VARCHAR(65535)   ENCODE lzo
+	,vendor_study_id VARCHAR(65535)   ENCODE lzo
+	,site_specimen_id VARCHAR(65535)   ENCODE lzo
+	,specimen_condition VARCHAR(65535)   ENCODE lzo
+	,specimen_extract_location VARCHAR(65535)   ENCODE lzo
+	,specimen_collection_date TIMESTAMP WITHOUT TIME ZONE   ENCODE az64
+	,specimen_received_date TIMESTAMP WITHOUT TIME ZONE   ENCODE az64
+	,vendor_specimen_type VARCHAR(65535)   ENCODE lzo
+	,specimen_status VARCHAR(65535)   ENCODE lzo
+	,specimen_accession_date TIMESTAMP WITHOUT TIME ZONE   ENCODE az64
+	,specimen_reporting_date TIMESTAMP WITHOUT TIME ZONE   ENCODE az64
+	,repeat_status VARCHAR(65535)   ENCODE lzo
+	,repeat_times VARCHAR(65535)   ENCODE lzo
+	,number_of_slides INTEGER   ENCODE az64
+	,number_of_slides_needed INTEGER   ENCODE az64
+	,reason_qualified_or_failed VARCHAR(65535)   ENCODE lzo
+	,sample_pass_fail_status VARCHAR(65535)   ENCODE lzo
+	,run_id BIGINT   ENCODE az64
+	,composite_primary_key VARCHAR(65535)   ENCODE lzo
+	,row_id VARCHAR(65535)   ENCODE lzo
+)
+DISTSTYLE AUTO
+;
+ALTER TABLE orbit_64407564mmy3009.specimen owner to orbit_sa;
