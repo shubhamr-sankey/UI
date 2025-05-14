@@ -1,52 +1,169 @@
-Command
-"SELECT CAST(""collection_tracking_vw"".""accession_number"" AS TEXT) AS ""accession_number"",
-  CAST(""collection_tracking_vw"".""actual_specimen_condition"" AS TEXT) AS ""actual_specimen_condition"",
-  ""collection_tracking_vw"".""assessment"" AS ""assessment"",
-  ""collection_tracking_vw"".""assessment_completed"" AS ""assessment_completed"",
-  ""collection_tracking_vw"".""assessment_group"" AS ""assessment_group"",
-  ""collection_tracking_vw"".""assessment_test"" AS ""assessment_test"",
-  CAST(""collection_tracking_vw"".""coal_visit_collection_dates"" AS DATE) AS ""coal_visit_collection_dates"",
-  CAST(""collection_tracking_vw"".""cohort"" AS TEXT) AS ""cohort"",
-  ""collection_tracking_vw"".""collection_status"" AS ""collection_status"",
-  ""collection_tracking_vw"".""condition_flag"" AS ""condition_flag"",
-  CAST(""collection_tracking_vw"".""date_enrollment"" AS TEXT) AS ""date_enrollment"",
-  ""collection_tracking_vw"".""discontinuation_date"" AS ""discontinuation_date"",
-  ""collection_tracking_vw"".""exp_specimen_class"" AS ""exp_specimen_class"",
-  ""collection_tracking_vw"".""exp_visit"" AS ""exp_visit"",
-  ""collection_tracking_vw"".""expected_collection"" AS ""expected_collection"",
-  CAST(""collection_tracking_vw"".""expected_temp"" AS TEXT) AS ""expected_temp"",
-  ""collection_tracking_vw"".""ig_test_date"" AS ""ig_test_date"",
-  ""collection_tracking_vw"".""igd_ige_status"" AS ""igd_ige_status"",
-  ""collection_tracking_vw"".""missed_all_collections"" AS ""missed_all_collections"",
-  ""collection_tracking_vw"".""missed_collection_binary"" AS ""missed_collection_binary"",
-  ""collection_tracking_vw"".""missed_visit_collections"" AS ""missed_visit_collections"",
-  CAST(""collection_tracking_vw"".""mrd_baseline"" AS TEXT) AS ""mrd_baseline"",
-  CAST(""collection_tracking_vw"".""mrd_clone_status"" AS TEXT) AS ""mrd_clone_status"",
-  ""collection_tracking_vw"".""optional"" AS ""optional"",
-  CAST(""collection_tracking_vw"".""protocol_version"" AS TEXT) AS ""protocol_version"",
-  ""collection_tracking_vw"".""randomization_date"" AS ""randomization_date"",
-  ""collection_tracking_vw"".""receiving_lab"" AS ""receiving_lab"",
-  CAST(""collection_tracking_vw"".""sample_query"" AS TEXT) AS ""sample_query"",
-  ""collection_tracking_vw"".""scheduled_collection"" AS ""scheduled_collection"",
-  ""collection_tracking_vw"".""screen_failed_date"" AS ""screen_failed_date"",
-  ""collection_tracking_vw"".""screening_date"" AS ""screening_date"",
-  CAST(""collection_tracking_vw"".""site_country_name"" AS TEXT) AS ""site_country_name"",
-  CAST(""collection_tracking_vw"".""site_id"" AS TEXT) AS ""site_id"",
-  ""collection_tracking_vw"".""specimen_accession_date"" AS ""specimen_accession_date"",
-  CAST(""collection_tracking_vw"".""specimen_class"" AS TEXT) AS ""specimen_class"",
-  CAST(""collection_tracking_vw"".""specimen_collection_date"" AS DATE) AS ""specimen_collection_date"",
-  CAST(""collection_tracking_vw"".""specimen_id"" AS TEXT) AS ""specimen_id"",
-  CAST(""collection_tracking_vw"".""specimen_received_date"" AS DATE) AS ""specimen_received_date"",
-  CAST(""collection_tracking_vw"".""specimen_status"" AS TEXT) AS ""specimen_status"",
-  CAST(""collection_tracking_vw"".""specimen_type"" AS TEXT) AS ""specimen_type"",
-  ""collection_tracking_vw"".""study_arm"" AS ""study_arm"",
-  CAST(""collection_tracking_vw"".""study_subject_status"" AS TEXT) AS ""study_subject_status"",
-  CAST(""collection_tracking_vw"".""subject_id"" AS TEXT) AS ""subject_id"",
-  ""collection_tracking_vw"".""test_result_date"" AS ""test_result_date"",
-  ""collection_tracking_vw"".""total_visit_collections"" AS ""total_visit_collections"",
-  CAST(""collection_tracking_vw"".""treatment_arm"" AS TEXT) AS ""treatment_arm"",
-  ""collection_tracking_vw"".""two_or_more_missed_collections"" AS ""two_or_more_missed_collections"",
-  ""collection_tracking_vw"".""visit_date_actl"" AS ""visit_date_actl"",
-  ""collection_tracking_vw"".""visit_date_exp"" AS ""visit_date_exp"",
-  CAST(""collection_tracking_vw"".""visit_name"" AS TEXT) AS ""visit_name""
-FROM ""orbit_68284528mmy3005"".""collection_tracking_vw"" ""collection_tracking_vw"""
+
+#this code is for specific table mention the table below
+
+import psycopg2
+import snowflake.connector
+import logging
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
+REDSHIFT_HOST = 'medai-orbit.cqibeghf1hd5.us-east-1.redshift.amazonaws.com'
+REDSHIFT_PORT = '5439'  # Default Redshift port
+REDSHIFT_USER = 'orbit_sa_read_only'
+REDSHIFT_PASSWORD = 'r##'
+REDSHIFT_DB = 'orbit'
+
+sf_user = 'SA-JRDUS-ORBIT-ENG-D'
+sf_account = 'jrd-bt-useast.privatelink'
+sf_warehouse = 'WH_ORBIT_DEV_ETL'
+sf_database = 'ORB_DEV'
+sf_schema = 'OR'
+sf_role = 'ITS_APP_DEV_RDDW_ORBIT_DEVELOPERS'
+
+# Path to your private key (.p8 or .pem)
+PRIVATE_KEY_PATH = 'sa-#-orbit-eng-#.p8'  #  UPDATE THIS
+PRIVATE_KEY_PASSPHRASE = b'#'   # Replace with the passphrase, or None if not required
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO,  # You can change to DEBUG for more detailed logs
+    filename='migration.log',  # Log to a file named 'migration.log'
+    filemode='w'  # 'w' mode will overwrite the log file each time the script runs
+)
+
+def get_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as key_file:
+        private_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=PRIVATE_KEY_PASSPHRASE,
+            backend=default_backend()
+        )
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+
+def connect_to_redshift():
+    try:
+        connection = psycopg2.connect(
+            dbname=REDSHIFT_DB,
+            user=REDSHIFT_USER,
+            password=REDSHIFT_PASSWORD,
+            host=REDSHIFT_HOST,
+            port=REDSHIFT_PORT
+        )
+        logging.info("Connected to Redshift successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Redshift: {e}")
+        raise
+
+
+def connect_to_snowflake():
+    try:
+        private_key = get_private_key()
+
+        connection = snowflake.connector.connect(
+            user=sf_user,
+            account=sf_account,
+            private_key=private_key,
+            warehouse=sf_warehouse,
+            database=sf_database,
+            schema=sf_schema,
+            role=sf_role  # Include role
+        )
+        logging.info("Connected to Snowflake successfully.")
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to Snowflake: {e}")
+        raise
+
+
+
+def fetch_redshift_data_in_batches(table_name, batch_size=1901):
+    try:
+        connection = connect_to_redshift()
+        cursor = connection.cursor()
+
+        # Query to fetch data in batches, using OFFSET for pagination
+        offset = 0
+        while True:
+            query = f"SELECT * FROM orbit.{table_name} LIMIT {batch_size} OFFSET {offset}"
+            cursor.execute(query)
+
+            # Fetch rows from the result
+            rows = cursor.fetchall()
+
+            # If no rows are fetched, stop fetching more
+            if not rows:
+                break
+
+            # Fetch column names only once
+            if offset == 0:
+                column_names = [desc[0] for desc in cursor.description]
+
+            # Yielding rows in batches
+            yield column_names, rows
+
+            # Move the offset forward for the next batch
+            offset += batch_size
+
+        connection.close()
+        logging.info(f"Completed fetching data from Redshift table: {table_name}")
+    except Exception as e:
+        logging.error(f"Error fetching data from Redshift table {table_name}: {e}")
+        raise
+
+
+# -------------------------------------------
+# Function to insert data into Snowflake in batches
+# -------------------------------------------
+def insert_data_into_snowflake(table_name, column_names, rows):
+    try:
+        connection = connect_to_snowflake()
+        cursor = connection.cursor()
+
+        # Prepare the insert statement for Snowflake
+        column_names_str = ', '.join(column_names)
+        values_placeholder = ', '.join(['%s'] * len(column_names))
+
+        insert_query = f"INSERT INTO {sf_schema}.{table_name} ({column_names_str}) VALUES ({values_placeholder})"
+
+        # Execute the insert statement in batches
+        cursor.executemany(insert_query, rows)
+        connection.commit()
+        connection.close()
+
+        logging.info(f"Data inserted into Snowflake table: {table_name}")
+    except Exception as e:
+        logging.error(f"Error inserting data into Snowflake table {table_name}: {e}")
+        raise
+
+
+def migrate_data_to_snowflake():
+    try:
+        # Specify the table you want to migrate
+        table_name = 'specimen'  # Change to the table you want to migrate
+
+        logging.info(f"Starting migration for table: {table_name}")
+
+        # Fetch and insert data in batches of 10,000 records
+        for column_names, rows in fetch_redshift_data_in_batches(table_name, batch_size=1901):
+            # Insert data into Snowflake
+            insert_data_into_snowflake(table_name, column_names, rows)
+
+        logging.info("Data migration from Redshift to Snowflake completed successfully.")
+    except Exception as e:
+        logging.error(f"Error during data migration: {e}")
+        raise
+
+
+# Main execution
+if __name__ == "__main__":
+    try:
+        migrate_data_to_snowflake()
+    except Exception as e:
+        logging.critical(f"Critical error during migration: {e}")
